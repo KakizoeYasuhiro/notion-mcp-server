@@ -1,32 +1,12 @@
 import axios from 'axios'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import { REQUEST_TIMEOUT_MS, MAX_RESPONSE_SIZE, isValidPath, sleep } from './shared'
 
 /** Maximum operations per batch */
 const MAX_BATCH_SIZE = 20
 
-/** Request timeout per operation (ms) */
-const REQUEST_TIMEOUT_MS = 30000
-
 /** Delay between operations to respect rate limits (ms) */
 const RATE_LIMIT_DELAY_MS = 350
-
-/** Maximum total response size */
-const MAX_RESPONSE_SIZE = 50000
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-/**
- * Validate path (same logic as raw-api).
- */
-function isValidPath(path: string): boolean {
-  if (!path || typeof path !== 'string') return false
-  if (path.includes('?') || path.includes('#')) return false
-  if (path.includes('..') || path.includes('//')) return false
-  if (path.includes('%2e') || path.includes('%2E')) return false
-  return /^\/v1\/[a-zA-Z0-9/_-]+$/.test(path)
-}
 
 interface BatchOperation {
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
@@ -36,6 +16,7 @@ interface BatchOperation {
 
 interface BatchResult {
   index: number
+  path: string
   status: number | 'error'
   data?: unknown
   message?: string
@@ -49,15 +30,18 @@ export const batchToolDefinition: Tool = {
   description:
     'Notion | Execute multiple Notion API operations in sequence with automatic rate-limit handling. ' +
     'Max 20 operations per batch. Operations run sequentially (not parallel) to respect Notion rate limits. ' +
-    'Use for bulk updates like archiving pages, updating properties on multiple pages, or deleting blocks. ' +
-    'Each operation is independent — failures do not stop subsequent operations. ' +
-    'Returns per-operation results.',
+    'Use for independent bulk operations like archiving pages, updating properties on multiple pages, or deleting blocks. ' +
+    'Do NOT use for dependent operations (where operation B needs the result of A) — use individual tools sequentially instead. ' +
+    'Returns per-operation results with a summary including failed_operations for easy retry.',
   inputSchema: {
     type: 'object' as const,
     properties: {
       operations: {
         type: 'array',
-        description: 'Array of operations to execute sequentially. Max 20.',
+        description:
+          'Array of independent operations to execute sequentially. Max 20. ' +
+          'Each operation: { method, path, body? }. ' +
+          'Example: [{ "method": "PATCH", "path": "/v1/pages/{id}", "body": { "archived": true } }]',
         items: {
           type: 'object',
           properties: {
@@ -68,7 +52,7 @@ export const batchToolDefinition: Tool = {
             },
             path: {
               type: 'string',
-              description: 'API path (e.g. "/v1/pages/abc123"). Must start with /v1/.',
+              description: 'API path (e.g. "/v1/pages/{page_id}"). Must start with /v1/.',
             },
             body: {
               type: 'object',
@@ -107,28 +91,19 @@ export async function handleBatchOperations(
 
   if (!operations || !Array.isArray(operations)) {
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ status: 'error', message: 'operations must be an array' }),
-      }],
+      content: [{ type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'operations must be an array' }) }],
     }
   }
 
   if (operations.length === 0) {
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ status: 'error', message: 'operations array is empty' }),
-      }],
+      content: [{ type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'operations array is empty' }) }],
     }
   }
 
   if (operations.length > MAX_BATCH_SIZE) {
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ status: 'error', message: `Max ${MAX_BATCH_SIZE} operations per batch. Got ${operations.length}.` }),
-      }],
+      content: [{ type: 'text' as const, text: JSON.stringify({ status: 'error', message: `Max ${MAX_BATCH_SIZE} operations per batch. Got ${operations.length}.` }) }],
     }
   }
 
@@ -151,19 +126,18 @@ export async function handleBatchOperations(
   for (let i = 0; i < operations.length; i++) {
     const op = operations[i]
     const method = (op.method || 'GET').toUpperCase()
-    const path = op.path
+    const opPath = op.path
 
-    if (!isValidPath(path)) {
-      results.push({ index: i, status: 'error', message: `Invalid path: ${path}` })
+    if (!isValidPath(opPath)) {
+      results.push({ index: i, path: opPath, status: 'error', message: `Invalid path: ${opPath}` })
       failed++
       if (stopOnError) break
       continue
     }
 
-    const url = `${normalizedBase}${path}`
-    console.error(`[batch] [${i + 1}/${operations.length}] ${method} ${path}`)
+    const url = `${normalizedBase}${opPath}`
+    console.error(`[batch] [${i + 1}/${operations.length}] ${method} ${opPath}`)
 
-    // Retry loop for rate limits
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const response = await axios({
@@ -183,13 +157,13 @@ export async function handleBatchOperations(
         }
 
         if (response.status >= 400) {
-          // Extract Notion error message if available
-          const notionError = response.data?.message || response.data?.code || `HTTP ${response.status}`
-          results.push({ index: i, status: response.status, message: notionError })
+          const notionCode = response.data?.code || undefined
+          const notionError = response.data?.message || `HTTP ${response.status}`
+          results.push({ index: i, path: opPath, status: response.status, message: notionError, ...(notionCode ? { data: { code: notionCode } } : {}) })
           failed++
           if (stopOnError) break
         } else {
-          results.push({ index: i, status: response.status, data: response.data })
+          results.push({ index: i, path: opPath, status: response.status, data: response.data })
           succeeded++
         }
         break
@@ -199,7 +173,7 @@ export async function handleBatchOperations(
           await sleep(1000 * Math.pow(2, attempt))
           continue
         }
-        results.push({ index: i, status: 'error', message: 'Request failed' })
+        results.push({ index: i, path: opPath, status: 'error', message: 'Request failed' })
         failed++
         if (stopOnError) break
         break
@@ -208,37 +182,53 @@ export async function handleBatchOperations(
 
     if (stopOnError && failed > 0) break
 
-    // Rate limit delay between operations
     if (i < operations.length - 1) {
       await sleep(RATE_LIMIT_DELAY_MS)
     }
   }
 
-  const responseStr = JSON.stringify({
+  // P0: Extract failed_operations for easy identification
+  const failedOperations = results
+    .filter(r => r.status === 'error' || (typeof r.status === 'number' && r.status >= 400))
+    .map(r => ({ index: r.index, path: r.path, status: r.status, message: r.message }))
+
+  const summary = {
+    total: operations.length,
+    succeeded,
+    failed,
+    executed: results.length,
+    ...(failedOperations.length > 0 ? { failed_operations: failedOperations } : {}),
+  }
+
+  // P1: Hint for retry
+  const hint = failedOperations.length > 0
+    ? `${failedOperations.length} operation(s) failed (indices: ${failedOperations.map(f => f.index).join(', ')}). You can retry just these by sending a new batch with only the failed operations.`
+    : undefined
+
+  const responseObj = {
     status: 200,
-    summary: { total: operations.length, succeeded, failed, executed: results.length },
+    summary,
+    ...(hint ? { hint } : {}),
     results,
-  })
+  }
+
+  const responseStr = JSON.stringify(responseObj)
 
   if (responseStr.length > MAX_RESPONSE_SIZE) {
-    // Summarize instead of full results
     return {
       content: [{
         type: 'text' as const,
         text: JSON.stringify({
           status: 200,
-          summary: { total: operations.length, succeeded, failed, executed: results.length },
-          note: 'Full results truncated due to size. Individual results omitted.',
-          errors: results.filter(r => r.status === 'error' || (typeof r.status === 'number' && r.status >= 400)),
+          summary,
+          ...(hint ? { hint } : {}),
+          note: 'Full results truncated due to size. Only failed operations shown.',
         }),
       }],
     }
   }
 
   return {
-    content: [{
-      type: 'text' as const,
-      text: responseStr,
-    }],
+    content: [{ type: 'text' as const, text: responseStr }],
   }
 }

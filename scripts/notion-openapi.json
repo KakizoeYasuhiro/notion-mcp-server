@@ -2339,7 +2339,7 @@
       },
       "patch": {
         "summary": "Update page content with Markdown",
-        "description": "Update page content using Markdown. Supports 4 command types: update_content (search-and-replace, recommended), replace_content (full replacement, recommended), insert_content (deprecated), replace_content_range (deprecated). Requires Notion-Version 2026-03-11 or later. Returns the full page markdown after update.",
+        "description": "Update page content using Markdown. Two command types: update_content (search-and-replace for partial edits) and replace_content (full page replacement). Requires Notion-Version 2026-03-11 or later. Returns the full page markdown after update.",
         "operationId": "patch-page-markdown",
         "parameters": [
           {
@@ -2369,11 +2369,9 @@
                     "type": "string",
                     "enum": [
                       "update_content",
-                      "replace_content",
-                      "insert_content",
-                      "replace_content_range"
+                      "replace_content"
                     ],
-                    "description": "Command type. 'update_content' (search-and-replace, recommended) or 'replace_content' (full page replacement, recommended). 'insert_content' and 'replace_content_range' are deprecated."
+                    "description": "Command type. 'update_content' (search-and-replace, recommended for partial edits) or 'replace_content' (full page replacement, recommended for rewrites)."
                   },
                   "update_content": {
                     "type": "object",
@@ -2424,38 +2422,6 @@
                         "type": "boolean",
                         "default": false,
                         "description": "Must be true to replace existing content"
-                      }
-                    }
-                  },
-                  "insert_content": {
-                    "type": "object",
-                    "description": "Insert content after a marker (deprecated, use update_content instead).",
-                    "properties": {
-                      "content": {
-                        "type": "string",
-                        "description": "Markdown content to insert"
-                      },
-                      "after": {
-                        "type": "string",
-                        "description": "Marker text after which to insert"
-                      }
-                    }
-                  },
-                  "replace_content_range": {
-                    "type": "object",
-                    "description": "Replace a range of content (deprecated, use update_content instead).",
-                    "properties": {
-                      "content": {
-                        "type": "string",
-                        "description": "Replacement Markdown content"
-                      },
-                      "content_range": {
-                        "type": "string",
-                        "description": "Range marker (start...end format)"
-                      },
-                      "allow_deleting_content": {
-                        "type": "boolean",
-                        "default": false
                       }
                     }
                   }

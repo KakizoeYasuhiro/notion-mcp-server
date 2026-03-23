@@ -1,21 +1,12 @@
 import axios from 'axios'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import { MAX_RESPONSE_SIZE, REQUEST_TIMEOUT_MS, structuredTruncate, isValidPath, sleep } from './shared'
 
 /** Maximum total results to fetch across all pages */
 const MAX_TOTAL_RESULTS = 500
 
-/** Maximum response size in characters */
-const MAX_RESPONSE_SIZE = 50000
-
-/** Request timeout in milliseconds */
-const REQUEST_TIMEOUT_MS = 30000
-
 /** Delay between paginated requests to respect rate limits (ms) */
 const RATE_LIMIT_DELAY_MS = 350
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
 
 /**
  * Tool definition for auto-paginated fetch.
@@ -26,7 +17,8 @@ export const paginatedFetchToolDefinition: Tool = {
     'Notion | Auto-paginate through a Notion API endpoint that supports cursor-based pagination (has_more/next_cursor). ' +
     'Automatically follows next_cursor until all results are fetched (up to 500 items). ' +
     'Use for: POST /v1/search, POST /v1/data_sources/{id}/query, GET /v1/blocks/{id}/children, GET /v1/comments, GET /v1/users. ' +
-    'Do NOT use for endpoints that do not return paginated results.',
+    'Do NOT use for endpoints that do not return paginated results. ' +
+    'Results are structurally truncated if too large (JSON structure preserved, omitted_count provided).',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -37,7 +29,9 @@ export const paginatedFetchToolDefinition: Tool = {
       },
       path: {
         type: 'string',
-        description: 'API path (e.g. "/v1/search", "/v1/blocks/abc123/children", "/v1/data_sources/xyz/query").',
+        description:
+          'API path. Examples: "/v1/search", "/v1/blocks/{block_id}/children", ' +
+          '"/v1/data_sources/{data_source_id}/query", "/v1/comments", "/v1/users".',
       },
       body: {
         type: 'object',
@@ -60,17 +54,6 @@ export const paginatedFetchToolDefinition: Tool = {
     title: 'Paginated Fetch',
     readOnlyHint: true,
   },
-}
-
-/**
- * Validate path (reuse logic from raw-api).
- */
-function isValidPath(path: string): boolean {
-  if (!path || typeof path !== 'string') return false
-  if (path.includes('?') || path.includes('#')) return false
-  if (path.includes('..') || path.includes('//')) return false
-  if (path.includes('%2e') || path.includes('%2E')) return false
-  return /^\/v1\/[a-zA-Z0-9/_-]+$/.test(path)
 }
 
 /**
@@ -166,7 +149,6 @@ export async function handlePaginatedFetch(
       if (results) {
         allResults.push(...results)
       } else {
-        // Non-paginated response, return as-is
         return {
           content: [{
             type: 'text' as const,
@@ -183,35 +165,35 @@ export async function handlePaginatedFetch(
 
       nextCursor = data.next_cursor
 
-      // Rate limit: wait between requests
       if (allResults.length < maxItems) {
         await sleep(RATE_LIMIT_DELAY_MS)
       }
     }
 
-    const responseStr = JSON.stringify({
+    const trimmedResults = allResults.slice(0, maxItems)
+    const responseObj = {
       status: 200,
-      total_fetched: allResults.length,
+      total_fetched: trimmedResults.length,
       pages_fetched: pageCount,
       has_more: allResults.length >= maxItems,
-      results: allResults.slice(0, maxItems),
-    })
+      results: trimmedResults,
+    }
 
-    // Truncate if too large
-    if (responseStr.length > MAX_RESPONSE_SIZE) {
-      const truncated = responseStr.slice(0, MAX_RESPONSE_SIZE)
-      return {
-        content: [{
-          type: 'text' as const,
-          text: `${truncated}...[TRUNCATED - ${allResults.length} items fetched across ${pageCount} pages]`,
-        }],
-      }
+    // P0: Structured truncation
+    const { data: truncatedData, truncated, omitted_count, total } = structuredTruncate(responseObj)
+
+    if (truncated) {
+      const result = truncatedData as Record<string, unknown>
+      result.truncated = true
+      if (omitted_count !== undefined) result.omitted_count = omitted_count
+      if (total !== undefined) result.total_in_response = total
+      result.hint = 'Response was truncated to fit size limits. Use max_items with a smaller value or add filters to reduce results.'
     }
 
     return {
       content: [{
         type: 'text' as const,
-        text: responseStr,
+        text: JSON.stringify(truncatedData),
       }],
     }
   } catch (error: unknown) {

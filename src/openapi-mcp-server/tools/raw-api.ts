@@ -1,11 +1,9 @@
 import axios from 'axios'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-
-/** Maximum response size in characters before truncation */
-const MAX_RESPONSE_SIZE = 50000
-
-/** Request timeout in milliseconds */
-const REQUEST_TIMEOUT_MS = 30000
+import {
+  MAX_RESPONSE_SIZE, REQUEST_TIMEOUT_MS, structuredTruncate,
+  findDedicatedToolHint, sleep, buildExecutionMetadata,
+} from './shared'
 
 /** Max retry attempts for rate-limited requests */
 const MAX_RETRIES = 3
@@ -19,47 +17,12 @@ const SAFE_PATH_PATTERN = /^\/v1\/[a-zA-Z0-9/_-]+$/
  */
 export function validatePath(path: string): string | null {
   if (!path || typeof path !== 'string') return null
-
-  // Reject paths with query strings embedded (must use query parameter)
   if (path.includes('?') || path.includes('#')) return null
-
-  // Reject path traversal
   if (path.includes('..')) return null
-
-  // Reject double slashes (protocol-relative URL or malformed path)
   if (path.includes('//')) return null
-
-  // Reject URL-encoded dots that could bypass traversal check
   if (path.includes('%2e') || path.includes('%2E')) return null
-
-  // Must match strict pattern
   if (!SAFE_PATH_PATTERN.test(path)) return null
-
   return path
-}
-
-/**
- * Truncate response data if it exceeds the maximum size.
- */
-function truncateResponse(data: unknown): { data: unknown; truncated: boolean } {
-  const str = JSON.stringify(data)
-  if (str.length <= MAX_RESPONSE_SIZE) {
-    return { data, truncated: false }
-  }
-  const truncated = str.slice(0, MAX_RESPONSE_SIZE)
-  try {
-    // Try to return valid JSON by parsing what we can
-    return { data: `${truncated}...[TRUNCATED - original size: ${str.length} chars]`, truncated: true }
-  } catch {
-    return { data: `${truncated}...[TRUNCATED]`, truncated: true }
-  }
-}
-
-/**
- * Sleep for exponential backoff
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
@@ -70,8 +33,8 @@ export const rawApiToolDefinition: Tool = {
   description:
     'Notion | Execute an arbitrary Notion API endpoint. ' +
     'ONLY use this when no predefined tool covers the operation — predefined tools have validated schemas and better error handling. ' +
-    'Specify HTTP method, path (e.g. "/v1/databases/{db_id}/query"), and optional body/query. ' +
-    'Responses are truncated at 50KB.',
+    'Specify HTTP method, path, and optional body/query. Responses are structurally truncated at 50KB (JSON structure preserved). ' +
+    'Common paths: /v1/pages/{id}, /v1/blocks/{id}/children, /v1/data_sources/{id}/query, /v1/search, /v1/comments, /v1/users, /v1/file_uploads.',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -83,7 +46,8 @@ export const rawApiToolDefinition: Tool = {
       path: {
         type: 'string',
         description:
-          'API path starting with /v1/. Examples: "/v1/pages/abc123", "/v1/databases/xyz/query", "/v1/blocks/abc/children". ' +
+          'API path starting with /v1/. Examples: "/v1/pages/{page_id}", "/v1/blocks/{block_id}/children", ' +
+          '"/v1/data_sources/{data_source_id}/query", "/v1/file_uploads". ' +
           'Must not contain query strings (use the query parameter instead), "..", or "//".',
       },
       body: {
@@ -108,7 +72,6 @@ export const rawApiToolDefinition: Tool = {
 
 /**
  * Handle a raw API call to the Notion API.
- * Includes path validation, rate limit retry, timeout, response truncation, and audit logging.
  */
 export async function handleRawApiCall(
   params: Record<string, unknown>,
@@ -122,56 +85,36 @@ export async function handleRawApiCall(
   const body = rawParams.body as Record<string, unknown> | undefined
   const query = rawParams.query as Record<string, unknown> | undefined
 
-  // H2: Strict path validation
   const validPath = validatePath(path)
   if (!validPath) {
     return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify({
-            status: 'error',
-            message:
-              'Invalid path. Must start with /v1/, contain only alphanumeric/hyphens/underscores/slashes, ' +
-              'and must not contain "..", "//", query strings, or encoded characters.',
-          }),
-        },
-      ],
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          status: 'error',
+          message: 'Invalid path. Must start with /v1/, contain only alphanumeric/hyphens/underscores/slashes, ' +
+            'and must not contain "..", "//", query strings, or encoded characters.',
+        }),
+      }],
     }
   }
 
-  // M8: Normalize baseUrl (remove trailing slash)
   const normalizedBase = baseUrl.replace(/\/+$/, '')
   const url = `${normalizedBase}${validPath}`
 
-  // Validate final URL points to expected host
   try {
     const parsed = new URL(url)
     if (!parsed.hostname.endsWith('notion.com')) {
       return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify({
-              status: 'error',
-              message: 'Request URL must target notion.com',
-            }),
-          },
-        ],
+        content: [{ type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'Request URL must target notion.com' }) }],
       }
     }
   } catch {
     return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify({ status: 'error', message: 'Invalid URL construction' }),
-        },
-      ],
+      content: [{ type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'Invalid URL construction' }) }],
     }
   }
 
-  // H4: Ensure Notion-Version header is always present
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'User-Agent': 'notion-mcp-server',
@@ -181,10 +124,15 @@ export async function handleRawApiCall(
     headers['Notion-Version'] = '2026-03-11'
   }
 
-  // M4: Audit log
   console.error(`[raw-api] ${method} ${validPath}${query ? ` query=${JSON.stringify(query)}` : ''}`)
 
-  // H5: Retry with exponential backoff for rate limits
+  // P1: Check for dedicated tool overlap
+  const dedicatedHint = findDedicatedToolHint(validPath)
+
+  // P2: Track retries for metadata
+  let retryCount = 0
+  let totalWaitMs = 0
+
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const response = await axios({
@@ -193,65 +141,64 @@ export async function handleRawApiCall(
         headers,
         data: ['POST', 'PATCH', 'PUT'].includes(method) ? body : undefined,
         params: query,
-        timeout: REQUEST_TIMEOUT_MS, // H6: Timeout
+        timeout: REQUEST_TIMEOUT_MS,
         validateStatus: () => true,
       })
 
-      // H5: Handle rate limiting with retry
       if (response.status === 429 && attempt < MAX_RETRIES) {
         const retryAfter = parseInt(response.headers['retry-after'] ?? '1', 10)
         const backoffMs = Math.min(retryAfter * 1000, 5000) * Math.pow(2, attempt)
         console.error(`[raw-api] Rate limited (429). Retrying in ${backoffMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`)
+        retryCount++
+        totalWaitMs += backoffMs
         await sleep(backoffMs)
         continue
       }
 
-      // H3: Truncate large responses
-      const { data: responseData, truncated } = truncateResponse(response.data)
+      // P0: Structured truncation
+      const { data: responseData, truncated, omitted_count, total } = structuredTruncate(response.data)
+
+      // P2: Execution metadata (only if retries occurred)
+      const executionMetadata = buildExecutionMetadata(retryCount, totalWaitMs)
 
       return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify({
-              status: response.status,
-              data: responseData,
-              ...(truncated ? { truncated: true } : {}),
-            }),
-          },
-        ],
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            status: response.status,
+            data: responseData,
+            ...(truncated ? { truncated: true, omitted_count, total } : {}),
+            ...(truncated ? { hint: 'Use notion-paginated-fetch for this endpoint to get all results.' } : {}),
+            ...(dedicatedHint ? { tool_hint: dedicatedHint } : {}),
+            ...(executionMetadata ? { execution_metadata: executionMetadata } : {}),
+          }),
+        }],
       }
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error'
-      // Don't leak full error details - just the message
       console.error(`[raw-api] Error: ${errMsg}`)
 
       if (attempt < MAX_RETRIES && errMsg.includes('ECONNRESET')) {
-        await sleep(1000 * Math.pow(2, attempt))
+        retryCount++
+        const waitMs = 1000 * Math.pow(2, attempt)
+        totalWaitMs += waitMs
+        await sleep(waitMs)
         continue
       }
 
       return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify({
-              status: 'error',
-              message: errMsg.includes('timeout') ? 'Request timed out (30s)' : 'Request failed',
-            }),
-          },
-        ],
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            status: 'error',
+            message: errMsg.includes('timeout') ? 'Request timed out (30s)' : 'Request failed',
+          }),
+        }],
       }
     }
   }
 
-  // Should not reach here, but just in case
   return {
-    content: [
-      {
-        type: 'text' as const,
-        text: JSON.stringify({ status: 'error', message: 'Max retries exceeded' }),
-      },
-    ],
+    content: [{ type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'Max retries exceeded' }) }],
   }
 }
