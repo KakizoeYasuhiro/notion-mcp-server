@@ -269,7 +269,7 @@ describe('MCPProxy', () => {
         expect.objectContaining({
           headers: {
             'Authorization': 'Bearer ntn_test_token_123',
-            'Notion-Version': '2025-09-03'
+            'Notion-Version': '2026-03-11'
           },
         }),
         expect.anything(),
@@ -317,7 +317,7 @@ describe('MCPProxy', () => {
         expect.objectContaining({
           headers: {
             'Authorization': 'Bearer ntn_test_token_123',
-            'Notion-Version': '2025-09-03'
+            'Notion-Version': '2026-03-11'
           },
         }),
         expect.anything(),

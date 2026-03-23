@@ -32,7 +32,7 @@
         "required": false,
         "schema": {
           "type": "string",
-          "default": "2025-09-03"
+          "default": "2026-03-11"
         },
         "description": "The Notion API version"
       }
@@ -1227,8 +1227,7 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "parent",
-                  "properties"
+                  "parent"
                 ],
                 "properties": {
                   "parent": {
@@ -1241,7 +1240,7 @@
                   },
                   "children": {
                     "type": "array",
-                    "description": "The content to be rendered on the new page, represented as an array of [block objects](https://developers.notion.com/reference/block).",
+                    "description": "The content to be rendered on the new page, represented as an array of block objects. Mutually exclusive with 'markdown' — cannot use both.",
                     "items": {
                       "type": "string"
                     }
@@ -1255,6 +1254,10 @@
                     "type": "string",
                     "description": "The cover image of the new page, represented as a [file object](https://developers.notion.com/reference/file-object).",
                     "format": "json"
+                  },
+                  "markdown": {
+                    "type": "string",
+                    "description": "Page content in Markdown format. Mutually exclusive with 'children' — cannot use both. If properties.title is omitted, the first # heading is extracted as title."
                   }
                 }
               }
@@ -2196,6 +2199,343 @@
                     "status": {
                       "type": "integer",
                       "example": 400
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false,
+        "security": []
+      }
+    },
+    "/v1/pages/{page_id}/markdown": {
+      "get": {
+        "summary": "Retrieve page content as Markdown",
+        "description": "Returns the content of a page in Notion-flavored Markdown format. Much more token-efficient than retrieving block children. Pages with ~20,000+ blocks may return truncated: true. File URLs in markdown are pre-signed and expire after a short period. Requires Notion-Version 2026-03-11 or later.",
+        "operationId": "get-page-markdown",
+        "parameters": [
+          {
+            "name": "page_id",
+            "in": "path",
+            "description": "Identifier for a Notion page",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "include_transcript",
+            "in": "query",
+            "description": "Whether to include meeting note transcripts (default: false)",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "required": false
+          },
+          {
+            "$ref": "#/components/parameters/notionVersion"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page content as Markdown",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "const": "page_markdown"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Page UUID"
+                    },
+                    "markdown": {
+                      "type": "string",
+                      "description": "The page content in Notion-flavored Markdown"
+                    },
+                    "truncated": {
+                      "type": "boolean",
+                      "description": "True if the page was too large and content was truncated"
+                    },
+                    "unknown_block_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "IDs of blocks that could not be converted to Markdown"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Page not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 404
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false,
+        "security": []
+      },
+      "patch": {
+        "summary": "Update page content with Markdown",
+        "description": "Update page content using Markdown. Supports 4 command types: update_content (search-and-replace, recommended), replace_content (full replacement, recommended), insert_content (deprecated), replace_content_range (deprecated). Requires Notion-Version 2026-03-11 or later. Returns the full page markdown after update.",
+        "operationId": "patch-page-markdown",
+        "parameters": [
+          {
+            "name": "page_id",
+            "in": "path",
+            "description": "Identifier for a Notion page",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "$ref": "#/components/parameters/notionVersion"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "update_content",
+                      "replace_content",
+                      "insert_content",
+                      "replace_content_range"
+                    ],
+                    "description": "Command type. 'update_content' (search-and-replace, recommended) or 'replace_content' (full page replacement, recommended). 'insert_content' and 'replace_content_range' are deprecated."
+                  },
+                  "update_content": {
+                    "type": "object",
+                    "description": "Search-and-replace operations (recommended). Max 100 operations per request.",
+                    "properties": {
+                      "content_updates": {
+                        "type": "array",
+                        "description": "Array of search-and-replace operations",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "old_str",
+                            "new_str"
+                          ],
+                          "properties": {
+                            "old_str": {
+                              "type": "string",
+                              "description": "Text to find (case-sensitive)"
+                            },
+                            "new_str": {
+                              "type": "string",
+                              "description": "Replacement text"
+                            },
+                            "replace_all_matches": {
+                              "type": "boolean",
+                              "default": false,
+                              "description": "Replace all occurrences or just the first"
+                            }
+                          }
+                        }
+                      },
+                      "allow_deleting_content": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Whether to allow deletions (new_str empty)"
+                      }
+                    }
+                  },
+                  "replace_content": {
+                    "type": "object",
+                    "description": "Replace entire page content (recommended for full rewrites).",
+                    "properties": {
+                      "new_str": {
+                        "type": "string",
+                        "description": "New Markdown content for the entire page"
+                      },
+                      "allow_deleting_content": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Must be true to replace existing content"
+                      }
+                    }
+                  },
+                  "insert_content": {
+                    "type": "object",
+                    "description": "Insert content after a marker (deprecated, use update_content instead).",
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "Markdown content to insert"
+                      },
+                      "after": {
+                        "type": "string",
+                        "description": "Marker text after which to insert"
+                      }
+                    }
+                  },
+                  "replace_content_range": {
+                    "type": "object",
+                    "description": "Replace a range of content (deprecated, use update_content instead).",
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "Replacement Markdown content"
+                      },
+                      "content_range": {
+                        "type": "string",
+                        "description": "Range marker (start...end format)"
+                      },
+                      "allow_deleting_content": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated page content as Markdown",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "const": "page_markdown"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "markdown": {
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "unknown_block_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Page not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 404
                     },
                     "code": {
                       "type": "string"

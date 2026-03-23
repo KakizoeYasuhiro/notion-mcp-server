@@ -5,6 +5,10 @@ import { OpenAPIToMCPConverter } from '../openapi/parser'
 import { HttpClient, HttpClientError } from '../client/http-client'
 import { OpenAPIV3 } from 'openapi-types'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import { rawApiToolDefinition, handleRawApiCall } from '../tools/raw-api'
+import { paginatedFetchToolDefinition, handlePaginatedFetch } from '../tools/paginated-fetch'
+import { batchToolDefinition, handleBatchOperations } from '../tools/batch'
+import { fileUploadToolDefinition, handleFileUpload } from '../tools/file-upload'
 
 type PathItemObject = OpenAPIV3.PathItemObject & {
   get?: OpenAPIV3.OperationObject
@@ -89,17 +93,20 @@ export class MCPProxy {
   private httpClient: HttpClient
   private tools: Record<string, NewToolDefinition>
   private openApiLookup: Record<string, OpenAPIV3.OperationObject & { method: string; path: string }>
+  private baseUrl: string
+  private authHeaders: Record<string, string>
 
   constructor(name: string, openApiSpec: OpenAPIV3.Document) {
     this.server = new Server({ name, version: '1.0.0' }, { capabilities: { tools: {} } })
-    const baseUrl = openApiSpec.servers?.[0].url
-    if (!baseUrl) {
+    this.baseUrl = openApiSpec.servers?.[0].url ?? ''
+    if (!this.baseUrl) {
       throw new Error('No base URL found in OpenAPI spec')
     }
+    this.authHeaders = this.parseHeadersFromEnv()
     this.httpClient = new HttpClient(
       {
-        baseUrl,
-        headers: this.parseHeadersFromEnv(),
+        baseUrl: this.baseUrl,
+        headers: this.authHeaders,
       },
       openApiSpec,
     )
@@ -143,12 +150,52 @@ export class MCPProxy {
         })
       })
 
+      // Add custom tools (from external modules)
+      tools.push(rawApiToolDefinition)
+      tools.push(paginatedFetchToolDefinition)
+      tools.push(batchToolDefinition)
+      tools.push(fileUploadToolDefinition)
+
       return { tools }
     })
 
     // Handle tool calling
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: params } = request.params
+
+      // Handle custom tools (delegated to external modules)
+      if (name === 'notion-raw-api') {
+        return handleRawApiCall(
+          params as Record<string, unknown>,
+          this.baseUrl,
+          this.authHeaders,
+          deserializeParams,
+        )
+      }
+      if (name === 'notion-paginated-fetch') {
+        return handlePaginatedFetch(
+          params as Record<string, unknown>,
+          this.baseUrl,
+          this.authHeaders,
+          deserializeParams,
+        )
+      }
+      if (name === 'notion-batch') {
+        return handleBatchOperations(
+          params as Record<string, unknown>,
+          this.baseUrl,
+          this.authHeaders,
+          deserializeParams,
+        )
+      }
+      if (name === 'notion-file-upload') {
+        return handleFileUpload(
+          params as Record<string, unknown>,
+          this.baseUrl,
+          this.authHeaders,
+          deserializeParams,
+        )
+      }
 
       // Find the operation in OpenAPI spec
       const operation = this.findOperation(name)
@@ -223,7 +270,7 @@ export class MCPProxy {
     if (notionToken) {
       return {
         'Authorization': `Bearer ${notionToken}`,
-        'Notion-Version': '2025-09-03'
+        'Notion-Version': '2026-03-11'
       }
     }
 
