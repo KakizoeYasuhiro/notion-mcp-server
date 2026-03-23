@@ -3,27 +3,14 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import {
   MAX_RESPONSE_SIZE, REQUEST_TIMEOUT_MS, structuredTruncate,
   findDedicatedToolHint, sleep, buildExecutionMetadata,
+  validatePath,
 } from './shared'
+
+// Re-export validatePath for existing test compatibility
+export { validatePath } from './shared'
 
 /** Max retry attempts for rate-limited requests */
 const MAX_RETRIES = 3
-
-/** Strict path pattern: /v1/ followed by alphanumeric, hyphens, underscores, slashes only */
-const SAFE_PATH_PATTERN = /^\/v1\/[a-zA-Z0-9/_-]+$/
-
-/**
- * Validate and sanitize the API path to prevent SSRF and path injection.
- * Returns the sanitized path or null if invalid.
- */
-export function validatePath(path: string): string | null {
-  if (!path || typeof path !== 'string') return null
-  if (path.includes('?') || path.includes('#')) return null
-  if (path.includes('..')) return null
-  if (path.includes('//')) return null
-  if (path.includes('%2e') || path.includes('%2E')) return null
-  if (!SAFE_PATH_PATTERN.test(path)) return null
-  return path
-}
 
 /**
  * Tool definition for the raw API tool.

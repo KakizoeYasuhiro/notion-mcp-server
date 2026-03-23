@@ -37,14 +37,22 @@ export function findDedicatedToolHint(path: string): string | null {
 }
 
 /**
- * Validate API path for safety.
+ * Validate and sanitize the API path to prevent SSRF and path injection.
+ * Returns the sanitized path or null if invalid.
  */
+export function validatePath(path: string): string | null {
+  if (!path || typeof path !== 'string') return null
+  if (path.includes('?') || path.includes('#')) return null
+  if (path.includes('..')) return null
+  if (path.includes('//')) return null
+  if (path.includes('%2e') || path.includes('%2E')) return null
+  if (!SAFE_PATH_PATTERN.test(path)) return null
+  return path
+}
+
+/** Convenience alias: returns boolean for contexts that don't need the path back. */
 export function isValidPath(path: string): boolean {
-  if (!path || typeof path !== 'string') return false
-  if (path.includes('?') || path.includes('#')) return false
-  if (path.includes('..') || path.includes('//')) return false
-  if (path.includes('%2e') || path.includes('%2E')) return false
-  return SAFE_PATH_PATTERN.test(path)
+  return validatePath(path) !== null
 }
 
 /**
@@ -77,7 +85,7 @@ export function structuredTruncate(data: unknown, maxSize: number = MAX_RESPONSE
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2)
       const candidate = { ...obj, results: fullResults.slice(0, mid) }
-      if (JSON.stringify(candidate).length <= maxSize - 200) { // 200 chars buffer for metadata
+      if (JSON.stringify(candidate).length <= maxSize - 500) { // 500 chars buffer for metadata
         lo = mid
       } else {
         hi = mid - 1
@@ -120,9 +128,19 @@ export function structuredTruncate(data: unknown, maxSize: number = MAX_RESPONSE
     }
   }
 
-  // Last resort: string truncation but with proper JSON wrapping
+  // Last resort: provide key sizes for debugging
+  const keySizes: Record<string, number> = {}
+  if (data && typeof data === 'object') {
+    for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
+      keySizes[k] = JSON.stringify(v).length
+    }
+  }
   return {
-    data: { message: `Response too large (${fullStr.length} chars). Use more specific queries or pagination.` },
+    data: {
+      message: `Response too large (${fullStr.length} chars).`,
+      key_sizes: keySizes,
+      hint: 'Use more specific queries, filters, or pagination to reduce response size.',
+    },
     truncated: true,
   }
 }

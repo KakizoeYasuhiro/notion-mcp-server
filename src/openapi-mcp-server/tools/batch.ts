@@ -163,7 +163,14 @@ export async function handleBatchOperations(
           failed++
           if (stopOnError) break
         } else {
-          results.push({ index: i, path: opPath, status: response.status, data: response.data })
+          // Success: keep only essential identifiers to prevent response bloat
+          const d = response.data
+          const minimized = (d && typeof d === 'object')
+            ? Object.fromEntries(
+                Object.entries(d).filter(([k]) => ['object', 'id', 'url', 'status'].includes(k))
+              )
+            : d
+          results.push({ index: i, path: opPath, status: response.status, data: minimized })
           succeeded++
         }
         break
