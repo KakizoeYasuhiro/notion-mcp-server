@@ -19,6 +19,7 @@ type FunctionParameters = {
 
 export class OpenAPIToMCPConverter {
   private schemaCache: Record<string, IJsonSchema> = {}
+  private componentsCache: Record<string, IJsonSchema> | null = null
   private nameCounter: number = 0
 
   constructor(private openApiSpec: OpenAPIV3.Document | OpenAPIV3_1.Document) {}
@@ -256,11 +257,13 @@ export class OpenAPIToMCPConverter {
   }
 
   private convertComponentsToJsonSchema(): Record<string, IJsonSchema> {
+    if (this.componentsCache) return this.componentsCache
     const components = this.openApiSpec.components || {}
     const schema: Record<string, IJsonSchema> = {}
     for (const [key, value] of Object.entries(components.schemas || {})) {
       schema[key] = this.convertOpenApiSchemaToJsonSchema(value, new Set())
     }
+    this.componentsCache = schema
     return schema
   }
   /**
@@ -455,28 +458,11 @@ export class OpenAPIToMCPConverter {
     // Extract return type (response schema)
     const returnSchema = this.extractResponseType(operation.responses)
 
-    // Generate Zod schema from input schema
-    try {
-      // const zodSchemaStr = jsonSchemaToZod(inputSchema, { module: "cjs" })
-      // console.log(zodSchemaStr)
-      // // Execute the function with the zod instance
-      // const zodSchema = eval(zodSchemaStr) as z.ZodType
-
-      return {
-        name: methodName,
-        description,
-        inputSchema,
-        ...(returnSchema ? { returnSchema } : {}),
-      }
-    } catch (error) {
-      console.warn(`Failed to generate Zod schema for ${methodName}:`, error)
-      // Fallback to a basic object schema
-      return {
-        name: methodName,
-        description,
-        inputSchema,
-        ...(returnSchema ? { returnSchema } : {}),
-      }
+    return {
+      name: methodName,
+      description,
+      inputSchema,
+      ...(returnSchema ? { returnSchema } : {}),
     }
   }
 

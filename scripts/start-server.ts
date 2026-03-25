@@ -145,6 +145,24 @@ Examples:
 
     // Map to store transports by session ID
     const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {}
+    const sessionLastAccess: { [sessionId: string]: number } = {}
+    const SESSION_TTL_MS = 30 * 60 * 1000 // 30 minutes
+
+    // Periodic session cleanup
+    setInterval(() => {
+      const now = Date.now()
+      for (const [sessionId, lastAccess] of Object.entries(sessionLastAccess)) {
+        if (now - lastAccess > SESSION_TTL_MS) {
+          console.error(`[http] Cleaning up stale session: ${sessionId}`)
+          const transport = transports[sessionId]
+          if (transport) {
+            transport.close?.()
+          }
+          delete transports[sessionId]
+          delete sessionLastAccess[sessionId]
+        }
+      }
+    }, 5 * 60 * 1000) // Check every 5 minutes
 
     // Handle POST requests for client-to-server communication
     app.post('/mcp', async (req, res) => {
@@ -156,6 +174,7 @@ Examples:
         if (sessionId && transports[sessionId]) {
           // Reuse existing transport
           transport = transports[sessionId]
+          sessionLastAccess[sessionId] = Date.now()
         } else if (!sessionId && isInitializeRequest(req.body)) {
           // New initialization request
           transport = new StreamableHTTPServerTransport({
@@ -163,6 +182,7 @@ Examples:
             onsessioninitialized: (sessionId) => {
               // Store the transport by session ID
               transports[sessionId] = transport
+              sessionLastAccess[sessionId] = Date.now()
             }
           })
 
@@ -170,6 +190,7 @@ Examples:
           transport.onclose = () => {
             if (transport.sessionId) {
               delete transports[transport.sessionId]
+              delete sessionLastAccess[transport.sessionId]
             }
           }
 
@@ -257,9 +278,11 @@ Examples:
             if (data.id && data.type === 'bot') {
               console.log(`Notion integration settings: https://www.notion.so/profile/integrations/internal/${data.id}`)
             }
+          } else {
+            console.error(`[startup] Notion token verification failed: HTTP ${res.status}. Check your NOTION_TOKEN.`)
           }
-        } catch {
-          // Non-critical: silently ignore if we can't resolve the bot ID
+        } catch (error) {
+          console.error('[startup] Failed to verify Notion token:', error instanceof Error ? error.message : error)
         }
       }
     })

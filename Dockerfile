@@ -32,5 +32,8 @@ COPY --from=builder /usr/local/bin/notion-mcp-server /usr/local/bin/notion-mcp-s
 # Set default environment variables
 ENV OPENAPI_MCP_HEADERS="{}"
 
+# Run as non-root user
+USER node
+
 # Set entrypoint
 ENTRYPOINT ["notion-mcp-server"]

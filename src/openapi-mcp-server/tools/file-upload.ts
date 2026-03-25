@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import FormData from 'form-data'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import { NOTION_API_VERSION } from './shared'
 
 /** Request timeout in milliseconds */
 const REQUEST_TIMEOUT_MS = 60000
@@ -127,7 +128,7 @@ export async function handleFileUpload(
     ...authHeaders,
   }
   if (!headers['Notion-Version']) {
-    headers['Notion-Version'] = '2026-03-11'
+    headers['Notion-Version'] = NOTION_API_VERSION
   }
 
   console.error(`[file-upload] Uploading ${filename} (${contentType}, ${stat.size} bytes)`)

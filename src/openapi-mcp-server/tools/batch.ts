@@ -1,6 +1,6 @@
 import axios from 'axios'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { REQUEST_TIMEOUT_MS, MAX_RESPONSE_SIZE, isValidPath, sleep } from './shared'
+import { REQUEST_TIMEOUT_MS, MAX_RESPONSE_SIZE, isValidPath, sleep, NOTION_API_VERSION } from './shared'
 
 /** Maximum operations per batch */
 const MAX_BATCH_SIZE = 20
@@ -114,7 +114,7 @@ export async function handleBatchOperations(
     ...authHeaders,
   }
   if (!headers['Notion-Version']) {
-    headers['Notion-Version'] = '2026-03-11'
+    headers['Notion-Version'] = NOTION_API_VERSION
   }
 
   console.error(`[batch] Starting ${operations.length} operations`)
@@ -153,6 +153,12 @@ export async function handleBatchOperations(
           const retryAfter = parseInt(response.headers['retry-after'] ?? '2', 10)
           console.error(`[batch] Rate limited at operation ${i}. Waiting ${retryAfter}s...`)
           await sleep(retryAfter * 1000)
+          continue
+        }
+
+        if ((response.status === 502 || response.status === 503) && attempt < 2) {
+          console.error(`[batch] Server error ${response.status} at operation ${i}. Retrying...`)
+          await sleep(1000 * Math.pow(2, attempt))
           continue
         }
 

@@ -1,6 +1,6 @@
 import axios from 'axios'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { MAX_RESPONSE_SIZE, REQUEST_TIMEOUT_MS, structuredTruncate, isValidPath, sleep } from './shared'
+import { MAX_RESPONSE_SIZE, REQUEST_TIMEOUT_MS, structuredTruncate, isValidPath, sleep, NOTION_API_VERSION } from './shared'
 
 /** Maximum total results to fetch across all pages */
 const MAX_TOTAL_RESULTS = 500
@@ -99,7 +99,7 @@ export async function handlePaginatedFetch(
     ...authHeaders,
   }
   if (!headers['Notion-Version']) {
-    headers['Notion-Version'] = '2026-03-11'
+    headers['Notion-Version'] = NOTION_API_VERSION
   }
 
   console.error(`[paginated-fetch] ${method} ${path} (max_items=${maxItems})`)

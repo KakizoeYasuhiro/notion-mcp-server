@@ -9,6 +9,7 @@ import { rawApiToolDefinition, handleRawApiCall } from '../tools/raw-api'
 import { paginatedFetchToolDefinition, handlePaginatedFetch } from '../tools/paginated-fetch'
 import { batchToolDefinition, handleBatchOperations } from '../tools/batch'
 import { fileUploadToolDefinition, handleFileUpload } from '../tools/file-upload'
+import { NOTION_API_VERSION } from '../tools/shared'
 
 type PathItemObject = OpenAPIV3.PathItemObject & {
   get?: OpenAPIV3.OperationObject
@@ -215,8 +216,8 @@ export class MCPProxy {
         return {
           content: [
             {
-              type: 'text', // currently this is the only type that seems to be used by mcp server
-              text: JSON.stringify(response.data), // TODO: pass through the http status code text?
+              type: 'text',
+              text: JSON.stringify({ status: response.status, data: response.data }),
             },
           ],
         }
@@ -230,14 +231,25 @@ export class MCPProxy {
               {
                 type: 'text',
                 text: JSON.stringify({
-                  status: 'error', // TODO: get this from http status code?
+                  status: error.status,
                   ...(typeof data === 'object' ? data : { data: data }),
                 }),
               },
             ],
           }
         }
-        throw error
+        const message = error instanceof Error ? error.message : 'Unknown error'
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'error',
+                message,
+              }),
+            },
+          ],
+        }
       }
     })
   }
@@ -270,7 +282,7 @@ export class MCPProxy {
     if (notionToken) {
       return {
         'Authorization': `Bearer ${notionToken}`,
-        'Notion-Version': '2026-03-11'
+        'Notion-Version': NOTION_API_VERSION
       }
     }
 

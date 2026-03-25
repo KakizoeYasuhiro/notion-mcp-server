@@ -3,7 +3,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import {
   MAX_RESPONSE_SIZE, REQUEST_TIMEOUT_MS, structuredTruncate,
   findDedicatedToolHint, sleep, buildExecutionMetadata,
-  validatePath,
+  validatePath, NOTION_API_VERSION,
 } from './shared'
 
 // Re-export validatePath for existing test compatibility
@@ -108,7 +108,7 @@ export async function handleRawApiCall(
     ...authHeaders,
   }
   if (!headers['Notion-Version']) {
-    headers['Notion-Version'] = '2026-03-11'
+    headers['Notion-Version'] = NOTION_API_VERSION
   }
 
   console.error(`[raw-api] ${method} ${validPath}${query ? ` query=${JSON.stringify(query)}` : ''}`)

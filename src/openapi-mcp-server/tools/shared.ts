@@ -1,3 +1,6 @@
+/** Notion API version header value — single source of truth */
+export const NOTION_API_VERSION = '2026-03-11'
+
 /** Maximum response size in characters */
 export const MAX_RESPONSE_SIZE = 50000
 

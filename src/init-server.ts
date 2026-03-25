@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { OpenAPIV3 } from 'openapi-types'
-import OpenAPISchemaValidator from 'openapi-schema-validator'
 
 import { MCPProxy } from './openapi-mcp-server/mcp/proxy'
 
