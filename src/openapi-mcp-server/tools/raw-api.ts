@@ -1,9 +1,13 @@
-import axios from 'axios'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import axios from 'axios'
 import {
-  MAX_RESPONSE_SIZE, REQUEST_TIMEOUT_MS, structuredTruncate,
-  findDedicatedToolHint, sleep, buildExecutionMetadata,
-  validatePath, NOTION_API_VERSION,
+  buildExecutionMetadata,
+  findDedicatedToolHint,
+  NOTION_API_VERSION,
+  REQUEST_TIMEOUT_MS,
+  sleep,
+  structuredTruncate,
+  validatePath,
 } from './shared'
 
 // Re-export validatePath for existing test compatibility
@@ -67,7 +71,7 @@ export async function handleRawApiCall(
   deserializeParams: (p: Record<string, unknown>) => Record<string, unknown>,
 ) {
   const rawParams = deserializeParams(params)
-  const method = (rawParams.method as string || 'GET').toUpperCase()
+  const method = ((rawParams.method as string) || 'GET').toUpperCase()
   const path = rawParams.path as string
   const body = rawParams.body as Record<string, unknown> | undefined
   const query = rawParams.query as Record<string, unknown> | undefined
@@ -75,14 +79,17 @@ export async function handleRawApiCall(
   const validPath = validatePath(path)
   if (!validPath) {
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({
-          status: 'error',
-          message: 'Invalid path. Must start with /v1/, contain only alphanumeric/hyphens/underscores/slashes, ' +
-            'and must not contain "..", "//", query strings, or encoded characters.',
-        }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            status: 'error',
+            message:
+              'Invalid path. Must start with /v1/, contain only alphanumeric/hyphens/underscores/slashes, ' +
+              'and must not contain "..", "//", query strings, or encoded characters.',
+          }),
+        },
+      ],
     }
   }
 
@@ -93,12 +100,19 @@ export async function handleRawApiCall(
     const parsed = new URL(url)
     if (!parsed.hostname.endsWith('notion.com')) {
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'Request URL must target notion.com' }) }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ status: 'error', message: 'Request URL must target notion.com' }),
+          },
+        ],
       }
     }
   } catch {
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'Invalid URL construction' }) }],
+      content: [
+        { type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'Invalid URL construction' }) },
+      ],
     }
   }
 
@@ -134,8 +148,10 @@ export async function handleRawApiCall(
 
       if (response.status === 429 && attempt < MAX_RETRIES) {
         const retryAfter = parseInt(response.headers['retry-after'] ?? '1', 10)
-        const backoffMs = Math.min(retryAfter * 1000, 5000) * Math.pow(2, attempt)
-        console.error(`[raw-api] Rate limited (429). Retrying in ${backoffMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`)
+        const backoffMs = Math.min(retryAfter * 1000, 5000) * 2 ** attempt
+        console.error(
+          `[raw-api] Rate limited (429). Retrying in ${backoffMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`,
+        )
         retryCount++
         totalWaitMs += backoffMs
         await sleep(backoffMs)
@@ -149,17 +165,19 @@ export async function handleRawApiCall(
       const executionMetadata = buildExecutionMetadata(retryCount, totalWaitMs)
 
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            status: response.status,
-            data: responseData,
-            ...(truncated ? { truncated: true, omitted_count, total } : {}),
-            ...(truncated ? { hint: 'Use notion-paginated-fetch for this endpoint to get all results.' } : {}),
-            ...(dedicatedHint ? { tool_hint: dedicatedHint } : {}),
-            ...(executionMetadata ? { execution_metadata: executionMetadata } : {}),
-          }),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              status: response.status,
+              data: responseData,
+              ...(truncated ? { truncated: true, omitted_count, total } : {}),
+              ...(truncated ? { hint: 'Use notion-paginated-fetch for this endpoint to get all results.' } : {}),
+              ...(dedicatedHint ? { tool_hint: dedicatedHint } : {}),
+              ...(executionMetadata ? { execution_metadata: executionMetadata } : {}),
+            }),
+          },
+        ],
       }
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error'
@@ -167,20 +185,22 @@ export async function handleRawApiCall(
 
       if (attempt < MAX_RETRIES && errMsg.includes('ECONNRESET')) {
         retryCount++
-        const waitMs = 1000 * Math.pow(2, attempt)
+        const waitMs = 1000 * 2 ** attempt
         totalWaitMs += waitMs
         await sleep(waitMs)
         continue
       }
 
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            status: 'error',
-            message: errMsg.includes('timeout') ? 'Request timed out (30s)' : 'Request failed',
-          }),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              status: 'error',
+              message: errMsg.includes('timeout') ? 'Request timed out (30s)' : 'Request failed',
+            }),
+          },
+        ],
       }
     }
   }

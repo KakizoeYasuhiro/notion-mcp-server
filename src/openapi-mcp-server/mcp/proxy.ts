@@ -1,14 +1,14 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, JSONRPCResponse, ListToolsRequestSchema, Tool } from '@modelcontextprotocol/sdk/types.js'
-import { JSONSchema7 as IJsonSchema } from 'json-schema'
-import { OpenAPIToMCPConverter } from '../openapi/parser'
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from '@modelcontextprotocol/sdk/types.js'
+import type { JSONSchema7 as IJsonSchema } from 'json-schema'
+import type { OpenAPIV3 } from 'openapi-types'
 import { HttpClient, HttpClientError } from '../client/http-client'
-import { OpenAPIV3 } from 'openapi-types'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { rawApiToolDefinition, handleRawApiCall } from '../tools/raw-api'
-import { paginatedFetchToolDefinition, handlePaginatedFetch } from '../tools/paginated-fetch'
+import { OpenAPIToMCPConverter } from '../openapi/parser'
 import { batchToolDefinition, handleBatchOperations } from '../tools/batch'
 import { fileUploadToolDefinition, handleFileUpload } from '../tools/file-upload'
+import { handlePaginatedFetch, paginatedFetchToolDefinition } from '../tools/paginated-fetch'
+import { handleRawApiCall, rawApiToolDefinition } from '../tools/raw-api'
 import { NOTION_API_VERSION } from '../tools/shared'
 
 type PathItemObject = OpenAPIV3.PathItemObject & {
@@ -42,16 +42,13 @@ function deserializeParams(params: Record<string, unknown>): Record<string, unkn
     if (typeof value === 'string') {
       // Check if the string looks like a JSON object or array
       const trimmed = value.trim()
-      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-          (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
         try {
           const parsed = JSON.parse(value)
           // Only use parsed value if it's an object or array
           if (typeof parsed === 'object' && parsed !== null) {
             // Recursively deserialize nested objects
-            result[key] = Array.isArray(parsed)
-              ? parsed
-              : deserializeParams(parsed as Record<string, unknown>)
+            result[key] = Array.isArray(parsed) ? parsed : deserializeParams(parsed as Record<string, unknown>)
             continue
           }
         } catch {
@@ -63,16 +60,11 @@ function deserializeParams(params: Record<string, unknown>): Record<string, unkn
       result[key] = value.map((item) => {
         if (typeof item !== 'string') return item
         const trimmed = item.trim()
-        if (
-          (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-          (trimmed.startsWith('[') && trimmed.endsWith(']'))
-        ) {
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
           try {
             const parsed = JSON.parse(item)
             if (typeof parsed === 'object' && parsed !== null) {
-              return Array.isArray(parsed)
-                ? parsed
-                : deserializeParams(parsed as Record<string, unknown>)
+              return Array.isArray(parsed) ? parsed : deserializeParams(parsed as Record<string, unknown>)
             }
           } catch {
             // If parsing fails, keep the original string item
@@ -128,14 +120,14 @@ export class MCPProxy {
 
       // Add methods as separate tools to match the MCP format
       Object.entries(this.tools).forEach(([toolName, def]) => {
-        def.methods.forEach(method => {
-          const toolNameWithMethod = `${toolName}-${method.name}`;
-          const truncatedToolName = this.truncateToolName(toolNameWithMethod);
+        def.methods.forEach((method) => {
+          const toolNameWithMethod = `${toolName}-${method.name}`
+          const truncatedToolName = this.truncateToolName(toolNameWithMethod)
 
           // Look up the HTTP method to determine annotations
-          const operation = this.openApiLookup[toolNameWithMethod];
-          const httpMethod = operation?.method?.toLowerCase();
-          const isReadOnly = httpMethod === 'get';
+          const operation = this.openApiLookup[toolNameWithMethod]
+          const httpMethod = operation?.method?.toLowerCase()
+          const isReadOnly = httpMethod === 'get'
 
           tools.push({
             name: truncatedToolName,
@@ -143,9 +135,7 @@ export class MCPProxy {
             inputSchema: method.inputSchema as Tool['inputSchema'],
             annotations: {
               title: this.operationIdToTitle(method.name),
-              ...(isReadOnly
-                ? { readOnlyHint: true }
-                : { destructiveHint: true }),
+              ...(isReadOnly ? { readOnlyHint: true } : { destructiveHint: true }),
             },
           })
         })
@@ -166,12 +156,7 @@ export class MCPProxy {
 
       // Handle custom tools (delegated to external modules)
       if (name === 'notion-raw-api') {
-        return handleRawApiCall(
-          params as Record<string, unknown>,
-          this.baseUrl,
-          this.authHeaders,
-          deserializeParams,
-        )
+        return handleRawApiCall(params as Record<string, unknown>, this.baseUrl, this.authHeaders, deserializeParams)
       }
       if (name === 'notion-paginated-fetch') {
         return handlePaginatedFetch(
@@ -190,12 +175,7 @@ export class MCPProxy {
         )
       }
       if (name === 'notion-file-upload') {
-        return handleFileUpload(
-          params as Record<string, unknown>,
-          this.baseUrl,
-          this.authHeaders,
-          deserializeParams,
-        )
+        return handleFileUpload(params as Record<string, unknown>, this.baseUrl, this.authHeaders, deserializeParams)
       }
 
       // Find the operation in OpenAPI spec
@@ -281,31 +261,19 @@ export class MCPProxy {
     const notionToken = process.env.NOTION_TOKEN
     if (notionToken) {
       return {
-        'Authorization': `Bearer ${notionToken}`,
-        'Notion-Version': NOTION_API_VERSION
+        Authorization: `Bearer ${notionToken}`,
+        'Notion-Version': NOTION_API_VERSION,
       }
     }
 
     return {}
   }
 
-  private getContentType(headers: Headers): 'text' | 'image' | 'binary' {
-    const contentType = headers.get('content-type')
-    if (!contentType) return 'binary'
-
-    if (contentType.includes('text') || contentType.includes('json')) {
-      return 'text'
-    } else if (contentType.includes('image')) {
-      return 'image'
-    }
-    return 'binary'
-  }
-
   private truncateToolName(name: string): string {
     if (name.length <= 64) {
-      return name;
+      return name
     }
-    return name.slice(0, 64);
+    return name.slice(0, 64)
   }
 
   /**
@@ -317,8 +285,8 @@ export class MCPProxy {
       .replace(/([a-z])([A-Z])/g, '$1 $2')
       .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
       .split(/[\s_-]+/)
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
   }
 
   async connect(transport: Transport) {

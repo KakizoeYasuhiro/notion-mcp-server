@@ -1,6 +1,6 @@
-import axios from 'axios'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { REQUEST_TIMEOUT_MS, MAX_RESPONSE_SIZE, isValidPath, sleep, NOTION_API_VERSION } from './shared'
+import axios from 'axios'
+import { isValidPath, MAX_RESPONSE_SIZE, NOTION_API_VERSION, REQUEST_TIMEOUT_MS, sleep } from './shared'
 
 /** Maximum operations per batch */
 const MAX_BATCH_SIZE = 20
@@ -91,19 +91,31 @@ export async function handleBatchOperations(
 
   if (!operations || !Array.isArray(operations)) {
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'operations must be an array' }) }],
+      content: [
+        { type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'operations must be an array' }) },
+      ],
     }
   }
 
   if (operations.length === 0) {
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'operations array is empty' }) }],
+      content: [
+        { type: 'text' as const, text: JSON.stringify({ status: 'error', message: 'operations array is empty' }) },
+      ],
     }
   }
 
   if (operations.length > MAX_BATCH_SIZE) {
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ status: 'error', message: `Max ${MAX_BATCH_SIZE} operations per batch. Got ${operations.length}.` }) }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            status: 'error',
+            message: `Max ${MAX_BATCH_SIZE} operations per batch. Got ${operations.length}.`,
+          }),
+        },
+      ],
     }
   }
 
@@ -158,24 +170,29 @@ export async function handleBatchOperations(
 
         if ((response.status === 502 || response.status === 503) && attempt < 2) {
           console.error(`[batch] Server error ${response.status} at operation ${i}. Retrying...`)
-          await sleep(1000 * Math.pow(2, attempt))
+          await sleep(1000 * 2 ** attempt)
           continue
         }
 
         if (response.status >= 400) {
           const notionCode = response.data?.code || undefined
           const notionError = response.data?.message || `HTTP ${response.status}`
-          results.push({ index: i, path: opPath, status: response.status, message: notionError, ...(notionCode ? { data: { code: notionCode } } : {}) })
+          results.push({
+            index: i,
+            path: opPath,
+            status: response.status,
+            message: notionError,
+            ...(notionCode ? { data: { code: notionCode } } : {}),
+          })
           failed++
           if (stopOnError) break
         } else {
           // Success: keep only essential identifiers to prevent response bloat
           const d = response.data
-          const minimized = (d && typeof d === 'object')
-            ? Object.fromEntries(
-                Object.entries(d).filter(([k]) => ['object', 'id', 'url', 'status'].includes(k))
-              )
-            : d
+          const minimized =
+            d && typeof d === 'object'
+              ? Object.fromEntries(Object.entries(d).filter(([k]) => ['object', 'id', 'url', 'status'].includes(k)))
+              : d
           results.push({ index: i, path: opPath, status: response.status, data: minimized })
           succeeded++
         }
@@ -183,7 +200,7 @@ export async function handleBatchOperations(
       } catch (error: unknown) {
         const errMsg = error instanceof Error ? error.message : 'Unknown error'
         if (attempt < 2 && errMsg.includes('ECONNRESET')) {
-          await sleep(1000 * Math.pow(2, attempt))
+          await sleep(1000 * 2 ** attempt)
           continue
         }
         results.push({ index: i, path: opPath, status: 'error', message: 'Request failed' })
@@ -202,8 +219,8 @@ export async function handleBatchOperations(
 
   // P0: Extract failed_operations for easy identification
   const failedOperations = results
-    .filter(r => r.status === 'error' || (typeof r.status === 'number' && r.status >= 400))
-    .map(r => ({ index: r.index, path: r.path, status: r.status, message: r.message }))
+    .filter((r) => r.status === 'error' || (typeof r.status === 'number' && r.status >= 400))
+    .map((r) => ({ index: r.index, path: r.path, status: r.status, message: r.message }))
 
   const summary = {
     total: operations.length,
@@ -214,9 +231,10 @@ export async function handleBatchOperations(
   }
 
   // P1: Hint for retry
-  const hint = failedOperations.length > 0
-    ? `${failedOperations.length} operation(s) failed (indices: ${failedOperations.map(f => f.index).join(', ')}). You can retry just these by sending a new batch with only the failed operations.`
-    : undefined
+  const hint =
+    failedOperations.length > 0
+      ? `${failedOperations.length} operation(s) failed (indices: ${failedOperations.map((f) => f.index).join(', ')}). You can retry just these by sending a new batch with only the failed operations.`
+      : undefined
 
   const responseObj = {
     status: 200,
@@ -229,15 +247,17 @@ export async function handleBatchOperations(
 
   if (responseStr.length > MAX_RESPONSE_SIZE) {
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({
-          status: 200,
-          summary,
-          ...(hint ? { hint } : {}),
-          note: 'Full results truncated due to size. Only failed operations shown.',
-        }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            status: 200,
+            summary,
+            ...(hint ? { hint } : {}),
+            note: 'Full results truncated due to size. Only failed operations shown.',
+          }),
+        },
+      ],
     }
   }
 

@@ -15,15 +15,47 @@ export const SAFE_PATH_PATTERN = /^\/v1\/[a-zA-Z0-9/_-]+$/
  * Used by raw-api to suggest better alternatives.
  */
 export const DEDICATED_TOOL_HINTS: Array<{ pattern: RegExp; tool: string; description: string }> = [
-  { pattern: /^\/v1\/search$/, tool: 'API-post-search', description: 'Use the dedicated search tool for better schema validation' },
-  { pattern: /^\/v1\/pages\/[^/]+$/, tool: 'API-retrieve-a-page or API-patch-page', description: 'Use dedicated page tools for retrieve/update' },
-  { pattern: /^\/v1\/pages\/[^/]+\/markdown$/, tool: 'API-get-page-markdown or API-patch-page-markdown', description: 'Use dedicated markdown tools' },
+  {
+    pattern: /^\/v1\/search$/,
+    tool: 'API-post-search',
+    description: 'Use the dedicated search tool for better schema validation',
+  },
+  {
+    pattern: /^\/v1\/pages\/[^/]+$/,
+    tool: 'API-retrieve-a-page or API-patch-page',
+    description: 'Use dedicated page tools for retrieve/update',
+  },
+  {
+    pattern: /^\/v1\/pages\/[^/]+\/markdown$/,
+    tool: 'API-get-page-markdown or API-patch-page-markdown',
+    description: 'Use dedicated markdown tools',
+  },
   { pattern: /^\/v1\/pages$/, tool: 'API-post-page', description: 'Use the dedicated create page tool' },
-  { pattern: /^\/v1\/blocks\/[^/]+\/children$/, tool: 'API-get-block-children or API-patch-block-children', description: 'Use dedicated block children tools' },
-  { pattern: /^\/v1\/blocks\/[^/]+$/, tool: 'API-retrieve-a-block or API-update-a-block', description: 'Use dedicated block tools' },
-  { pattern: /^\/v1\/data_sources\/[^/]+\/query$/, tool: 'API-query-data-source', description: 'Use the dedicated query tool' },
-  { pattern: /^\/v1\/data_sources\/[^/]+$/, tool: 'API-retrieve-a-data-source', description: 'Use dedicated data source tools' },
-  { pattern: /^\/v1\/comments$/, tool: 'API-retrieve-a-comment or API-create-a-comment', description: 'Use dedicated comment tools' },
+  {
+    pattern: /^\/v1\/blocks\/[^/]+\/children$/,
+    tool: 'API-get-block-children or API-patch-block-children',
+    description: 'Use dedicated block children tools',
+  },
+  {
+    pattern: /^\/v1\/blocks\/[^/]+$/,
+    tool: 'API-retrieve-a-block or API-update-a-block',
+    description: 'Use dedicated block tools',
+  },
+  {
+    pattern: /^\/v1\/data_sources\/[^/]+\/query$/,
+    tool: 'API-query-data-source',
+    description: 'Use the dedicated query tool',
+  },
+  {
+    pattern: /^\/v1\/data_sources\/[^/]+$/,
+    tool: 'API-retrieve-a-data-source',
+    description: 'Use dedicated data source tools',
+  },
+  {
+    pattern: /^\/v1\/comments$/,
+    tool: 'API-retrieve-a-comment or API-create-a-comment',
+    description: 'Use dedicated comment tools',
+  },
   { pattern: /^\/v1\/users/, tool: 'API-get-user or API-get-users', description: 'Use dedicated user tools' },
 ]
 
@@ -65,7 +97,10 @@ export function isValidPath(path: string): boolean {
  * For other data: serializes and truncates with a descriptive message.
  * Always returns valid JSON.
  */
-export function structuredTruncate(data: unknown, maxSize: number = MAX_RESPONSE_SIZE): {
+export function structuredTruncate(
+  data: unknown,
+  maxSize: number = MAX_RESPONSE_SIZE,
+): {
   data: unknown
   truncated: boolean
   omitted_count?: number
@@ -88,7 +123,8 @@ export function structuredTruncate(data: unknown, maxSize: number = MAX_RESPONSE
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2)
       const candidate = { ...obj, results: fullResults.slice(0, mid) }
-      if (JSON.stringify(candidate).length <= maxSize - 500) { // 500 chars buffer for metadata
+      if (JSON.stringify(candidate).length <= maxSize - 500) {
+        // 500 chars buffer for metadata
         lo = mid
       } else {
         hi = mid - 1
@@ -116,7 +152,7 @@ export function structuredTruncate(data: unknown, maxSize: number = MAX_RESPONSE
     const summarized: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(obj)) {
       if (typeof value === 'string' && value.length > 1000) {
-        summarized[key] = value.slice(0, 1000) + `... [truncated, original: ${value.length} chars]`
+        summarized[key] = `${value.slice(0, 1000)}... [truncated, original: ${value.length} chars]`
       } else if (Array.isArray(value) && JSON.stringify(value).length > maxSize / 2) {
         summarized[key] = value.slice(0, 5)
         summarized[`${key}_omitted_count`] = value.length - 5
@@ -162,5 +198,5 @@ export function buildExecutionMetadata(retries: number, totalWaitMs: number): Re
 }
 
 export function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

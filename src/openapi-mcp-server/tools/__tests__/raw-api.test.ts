@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { validatePath, handleRawApiCall, rawApiToolDefinition } from '../raw-api'
 import axios from 'axios'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { handleRawApiCall, rawApiToolDefinition, validatePath } from '../raw-api'
 
 vi.mock('axios', () => ({
   default: vi.fn(),
@@ -87,7 +87,7 @@ describe('rawApiToolDefinition', () => {
 describe('handleRawApiCall', () => {
   const baseUrl = 'https://api.notion.com'
   const authHeaders = {
-    'Authorization': 'Bearer test-token',
+    Authorization: 'Bearer test-token',
     'Notion-Version': '2026-03-11',
   }
 
@@ -102,12 +102,7 @@ describe('handleRawApiCall', () => {
   })
 
   it('rejects invalid paths', async () => {
-    const result = await handleRawApiCall(
-      { method: 'GET', path: '/v2/bad' },
-      baseUrl,
-      authHeaders,
-      identity as any,
-    )
+    const result = await handleRawApiCall({ method: 'GET', path: '/v2/bad' }, baseUrl, authHeaders, identity as any)
     const content = JSON.parse(result.content[0].text)
     expect(content.status).toBe('error')
     expect(content.message).toContain('Invalid path')
@@ -180,12 +175,7 @@ describe('handleRawApiCall', () => {
       headers: {},
     } as any)
 
-    await handleRawApiCall(
-      { method: 'GET', path: '/v1/pages/abc' },
-      baseUrl,
-      authHeaders,
-      identity as any,
-    )
+    await handleRawApiCall({ method: 'GET', path: '/v1/pages/abc' }, baseUrl, authHeaders, identity as any)
 
     expect(mockedAxios).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -210,9 +200,7 @@ describe('handleRawApiCall', () => {
       authHeaders,
       identity as any,
     )
-    expect(mockedAxios).toHaveBeenCalledWith(
-      expect.objectContaining({ data: undefined }),
-    )
+    expect(mockedAxios).toHaveBeenCalledWith(expect.objectContaining({ data: undefined }))
 
     vi.clearAllMocks()
 
@@ -223,9 +211,7 @@ describe('handleRawApiCall', () => {
       authHeaders,
       identity as any,
     )
-    expect(mockedAxios).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { title: 'test' } }),
-    )
+    expect(mockedAxios).toHaveBeenCalledWith(expect.objectContaining({ data: { title: 'test' } }))
   })
 
   it('truncates large responses', async () => {
@@ -326,16 +312,9 @@ describe('handleRawApiCall', () => {
       headers: {},
     } as any)
 
-    await handleRawApiCall(
-      { path: '/v1/pages/abc' } as any,
-      baseUrl,
-      authHeaders,
-      identity as any,
-    )
+    await handleRawApiCall({ path: '/v1/pages/abc' } as any, baseUrl, authHeaders, identity as any)
 
-    expect(mockedAxios).toHaveBeenCalledWith(
-      expect.objectContaining({ method: 'get' }),
-    )
+    expect(mockedAxios).toHaveBeenCalledWith(expect.objectContaining({ method: 'get' }))
   })
 
   it('adds fallback Notion-Version when not in authHeaders', async () => {
@@ -376,8 +355,6 @@ describe('handleRawApiCall', () => {
       identity as any,
     )
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[raw-api] POST /v1/search'),
-    )
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[raw-api] POST /v1/search'))
   })
 })

@@ -1,8 +1,8 @@
-import { MCPProxy } from '../proxy'
-import { OpenAPIV3 } from 'openapi-types'
-import { HttpClient } from '../../client/http-client'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import type { OpenAPIV3 } from 'openapi-types'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { HttpClient } from '../../client/http-client'
+import { MCPProxy } from '../proxy'
 
 // Mock the dependencies
 vi.mock('../../client/http-client')
@@ -59,15 +59,15 @@ describe('MCPProxy', () => {
             operationId: 'a'.repeat(65),
             responses: {
               '200': {
-                description: 'Success'
-              }
-            }
-          }
-        }
+                description: 'Success',
+              },
+            },
+          },
+        },
       }
       proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
       const server = (proxy as any).server
-      const listToolsHandler = server.setRequestHandler.mock.calls[0].filter((x: unknown) => typeof x === 'function')[0];
+      const listToolsHandler = server.setRequestHandler.mock.calls[0].filter((x: unknown) => typeof x === 'function')[0]
       const result = await listToolsHandler()
 
       expect(result.tools[0].name.length).toBeLessThanOrEqual(64)
@@ -97,7 +97,9 @@ describe('MCPProxy', () => {
       }
 
       const server = (proxy as any).server
-      const handlers = server.setRequestHandler.mock.calls.flatMap((x: unknown[]) => x).filter((x: unknown) => typeof x === 'function')
+      const handlers = server.setRequestHandler.mock.calls
+        .flatMap((x: unknown[]) => x)
+        .filter((x: unknown) => typeof x === 'function')
       const callToolHandler = handlers[1]
 
       const result = await callToolHandler({
@@ -119,7 +121,9 @@ describe('MCPProxy', () => {
 
     it('should throw error for non-existent operation', async () => {
       const server = (proxy as any).server
-      const handlers = server.setRequestHandler.mock.calls.flatMap((x: unknown[]) => x).filter((x: unknown) => typeof x === 'function')
+      const handlers = server.setRequestHandler.mock.calls
+        .flatMap((x: unknown[]) => x)
+        .filter((x: unknown) => typeof x === 'function')
       const callToolHandler = handlers[1]
 
       await expect(
@@ -138,10 +142,10 @@ describe('MCPProxy', () => {
         data: { message: 'success' },
         status: 200,
         headers: new Headers({
-          'content-type': 'application/json'
-        })
-      };
-      (HttpClient.prototype.executeOperation as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+          'content-type': 'application/json',
+        }),
+      }
+      ;(HttpClient.prototype.executeOperation as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse)
 
       // Set up the openApiLookup with a long tool name
       const longToolName = 'a'.repeat(65)
@@ -151,41 +155,31 @@ describe('MCPProxy', () => {
           operationId: longToolName,
           responses: { '200': { description: 'Success' } },
           method: 'get',
-          path: '/test'
-        }
-      };
+          path: '/test',
+        },
+      }
 
-      const server = (proxy as any).server;
-      const handlers = server.setRequestHandler.mock.calls.flatMap((x: unknown[]) => x).filter((x: unknown) => typeof x === 'function');
-      const callToolHandler = handlers[1];
+      const server = (proxy as any).server
+      const handlers = server.setRequestHandler.mock.calls
+        .flatMap((x: unknown[]) => x)
+        .filter((x: unknown) => typeof x === 'function')
+      const callToolHandler = handlers[1]
 
       const result = await callToolHandler({
         params: {
           name: truncatedToolName,
-          arguments: {}
-        }
+          arguments: {},
+        },
       })
 
       expect(result).toEqual({
         content: [
           {
             type: 'text',
-            text: JSON.stringify({ status: 200, data: { message: 'success' } })
-          }
-        ]
+            text: JSON.stringify({ status: 200, data: { message: 'success' } }),
+          },
+        ],
       })
-    })
-  })
-
-  describe('getContentType', () => {
-    it('should return correct content type for different headers', () => {
-      const getContentType = (proxy as any).getContentType.bind(proxy)
-
-      expect(getContentType(new Headers({ 'content-type': 'text/plain' }))).toBe('text')
-      expect(getContentType(new Headers({ 'content-type': 'application/json' }))).toBe('text')
-      expect(getContentType(new Headers({ 'content-type': 'image/jpeg' }))).toBe('image')
-      expect(getContentType(new Headers({ 'content-type': 'application/octet-stream' }))).toBe('binary')
-      expect(getContentType(new Headers())).toBe('binary')
     })
   })
 
@@ -206,7 +200,7 @@ describe('MCPProxy', () => {
         'X-Custom-Header': 'test',
       })
 
-      const proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
+      const _proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
       expect(HttpClient).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: {
@@ -221,7 +215,7 @@ describe('MCPProxy', () => {
     it('should return empty object when env var is not set', () => {
       delete process.env.OPENAPI_MCP_HEADERS
 
-      const proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
+      const _proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
       expect(HttpClient).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: {},
@@ -234,14 +228,17 @@ describe('MCPProxy', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       process.env.OPENAPI_MCP_HEADERS = 'invalid json'
 
-      const proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
+      const _proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
       expect(HttpClient).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: {},
         }),
         expect.anything(),
       )
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to parse OPENAPI_MCP_HEADERS environment variable:', expect.any(Error))
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Failed to parse OPENAPI_MCP_HEADERS environment variable:',
+        expect.any(Error),
+      )
       consoleSpy.mockRestore()
     })
 
@@ -249,14 +246,17 @@ describe('MCPProxy', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       process.env.OPENAPI_MCP_HEADERS = '"string"'
 
-      const proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
+      const _proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
       expect(HttpClient).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: {},
         }),
         expect.anything(),
       )
-      expect(consoleSpy).toHaveBeenCalledWith('OPENAPI_MCP_HEADERS environment variable must be a JSON object, got:', 'string')
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'OPENAPI_MCP_HEADERS environment variable must be a JSON object, got:',
+        'string',
+      )
       consoleSpy.mockRestore()
     })
 
@@ -264,12 +264,12 @@ describe('MCPProxy', () => {
       delete process.env.OPENAPI_MCP_HEADERS
       process.env.NOTION_TOKEN = 'ntn_test_token_123'
 
-      const proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
+      const _proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
       expect(HttpClient).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: {
-            'Authorization': 'Bearer ntn_test_token_123',
-            'Notion-Version': '2026-03-11'
+            Authorization: 'Bearer ntn_test_token_123',
+            'Notion-Version': '2026-03-11',
           },
         }),
         expect.anything(),
@@ -283,7 +283,7 @@ describe('MCPProxy', () => {
       })
       process.env.NOTION_TOKEN = 'ntn_test_token_123'
 
-      const proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
+      const _proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
       expect(HttpClient).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: {
@@ -299,7 +299,7 @@ describe('MCPProxy', () => {
       delete process.env.OPENAPI_MCP_HEADERS
       delete process.env.NOTION_TOKEN
 
-      const proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
+      const _proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
       expect(HttpClient).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: {},
@@ -312,12 +312,12 @@ describe('MCPProxy', () => {
       process.env.OPENAPI_MCP_HEADERS = '{}'
       process.env.NOTION_TOKEN = 'ntn_test_token_123'
 
-      const proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
+      const _proxy = new MCPProxy('test-proxy', mockOpenApiSpec)
       expect(HttpClient).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: {
-            'Authorization': 'Bearer ntn_test_token_123',
-            'Notion-Version': '2026-03-11'
+            Authorization: 'Bearer ntn_test_token_123',
+            'Notion-Version': '2026-03-11',
           },
         }),
         expect.anything(),
@@ -511,7 +511,9 @@ describe('MCPProxy', () => {
       }
 
       const server = (proxy as any).server
-      const handlers = server.setRequestHandler.mock.calls.flatMap((x: unknown[]) => x).filter((x: unknown) => typeof x === 'function')
+      const handlers = server.setRequestHandler.mock.calls
+        .flatMap((x: unknown[]) => x)
+        .filter((x: unknown) => typeof x === 'function')
       const callToolHandler = handlers[1]
 
       // Simulate double-serialized parameters (the bug from issue #176)
@@ -531,16 +533,13 @@ describe('MCPProxy', () => {
       })
 
       // Verify that the parameters were deserialized before being passed to executeOperation
-      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(
-        expect.anything(),
-        {
-          data: {
-            page_id: 'test-page-id',
-            command: 'update_properties',
-            properties: { Status: 'Done' },
-          },
+      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(expect.anything(), {
+        data: {
+          page_id: 'test-page-id',
+          command: 'update_properties',
+          properties: { Status: 'Done' },
         },
-      )
+      })
     })
 
     it('should handle nested stringified JSON parameters', async () => {
@@ -561,7 +560,9 @@ describe('MCPProxy', () => {
       }
 
       const server = (proxy as any).server
-      const handlers = server.setRequestHandler.mock.calls.flatMap((x: unknown[]) => x).filter((x: unknown) => typeof x === 'function')
+      const handlers = server.setRequestHandler.mock.calls
+        .flatMap((x: unknown[]) => x)
+        .filter((x: unknown) => typeof x === 'function')
       const callToolHandler = handlers[1]
 
       // Nested stringified object
@@ -579,14 +580,11 @@ describe('MCPProxy', () => {
       })
 
       // Verify nested objects were also deserialized
-      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(
-        expect.anything(),
-        {
-          data: {
-            parent: { page_id: 'parent-page-id' },
-          },
+      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(expect.anything(), {
+        data: {
+          parent: { page_id: 'parent-page-id' },
         },
-      )
+      })
     })
 
     it('should deserialize JSON string items within an array parameter', async () => {
@@ -607,12 +605,22 @@ describe('MCPProxy', () => {
       }
 
       const server = (proxy as any).server
-      const handlers = server.setRequestHandler.mock.calls.flatMap((x: unknown[]) => x).filter((x: unknown) => typeof x === 'function')
+      const handlers = server.setRequestHandler.mock.calls
+        .flatMap((x: unknown[]) => x)
+        .filter((x: unknown) => typeof x === 'function')
       const callToolHandler = handlers[1]
 
       // Claude Desktop sends each array item as a JSON string
-      const block1 = JSON.stringify({ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: 'Hello' } }] } })
-      const block2 = JSON.stringify({ object: 'block', type: 'heading_1', heading_1: { rich_text: [{ type: 'text', text: { content: 'Title' } }] } })
+      const block1 = JSON.stringify({
+        object: 'block',
+        type: 'paragraph',
+        paragraph: { rich_text: [{ type: 'text', text: { content: 'Hello' } }] },
+      })
+      const block2 = JSON.stringify({
+        object: 'block',
+        type: 'heading_1',
+        heading_1: { rich_text: [{ type: 'text', text: { content: 'Title' } }] },
+      })
 
       await callToolHandler({
         params: {
@@ -623,15 +631,20 @@ describe('MCPProxy', () => {
         },
       })
 
-      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(
-        expect.anything(),
-        {
-          children: [
-            { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: 'Hello' } }] } },
-            { object: 'block', type: 'heading_1', heading_1: { rich_text: [{ type: 'text', text: { content: 'Title' } }] } },
-          ],
-        },
-      )
+      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(expect.anything(), {
+        children: [
+          {
+            object: 'block',
+            type: 'paragraph',
+            paragraph: { rich_text: [{ type: 'text', text: { content: 'Hello' } }] },
+          },
+          {
+            object: 'block',
+            type: 'heading_1',
+            heading_1: { rich_text: [{ type: 'text', text: { content: 'Title' } }] },
+          },
+        ],
+      })
     })
 
     it('should pass through an array of proper objects unchanged', async () => {
@@ -652,7 +665,9 @@ describe('MCPProxy', () => {
       }
 
       const server = (proxy as any).server
-      const handlers = server.setRequestHandler.mock.calls.flatMap((x: unknown[]) => x).filter((x: unknown) => typeof x === 'function')
+      const handlers = server.setRequestHandler.mock.calls
+        .flatMap((x: unknown[]) => x)
+        .filter((x: unknown) => typeof x === 'function')
       const callToolHandler = handlers[1]
 
       const block1 = { object: 'block', type: 'paragraph' }
@@ -667,10 +682,9 @@ describe('MCPProxy', () => {
         },
       })
 
-      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(
-        expect.anything(),
-        { children: [block1, block2] },
-      )
+      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(expect.anything(), {
+        children: [block1, block2],
+      })
     })
 
     it('should handle a mixed array with both string items and object items', async () => {
@@ -691,7 +705,9 @@ describe('MCPProxy', () => {
       }
 
       const server = (proxy as any).server
-      const handlers = server.setRequestHandler.mock.calls.flatMap((x: unknown[]) => x).filter((x: unknown) => typeof x === 'function')
+      const handlers = server.setRequestHandler.mock.calls
+        .flatMap((x: unknown[]) => x)
+        .filter((x: unknown) => typeof x === 'function')
       const callToolHandler = handlers[1]
 
       const blockAsString = JSON.stringify({ object: 'block', type: 'paragraph' })
@@ -706,15 +722,12 @@ describe('MCPProxy', () => {
         },
       })
 
-      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(
-        expect.anything(),
-        {
-          children: [
-            { object: 'block', type: 'paragraph' },
-            { object: 'block', type: 'heading_1' },
-          ],
-        },
-      )
+      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(expect.anything(), {
+        children: [
+          { object: 'block', type: 'paragraph' },
+          { object: 'block', type: 'heading_1' },
+        ],
+      })
     })
 
     it('should preserve non-JSON string items within arrays', async () => {
@@ -735,7 +748,9 @@ describe('MCPProxy', () => {
       }
 
       const server = (proxy as any).server
-      const handlers = server.setRequestHandler.mock.calls.flatMap((x: unknown[]) => x).filter((x: unknown) => typeof x === 'function')
+      const handlers = server.setRequestHandler.mock.calls
+        .flatMap((x: unknown[]) => x)
+        .filter((x: unknown) => typeof x === 'function')
       const callToolHandler = handlers[1]
 
       await callToolHandler({
@@ -747,10 +762,9 @@ describe('MCPProxy', () => {
         },
       })
 
-      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(
-        expect.anything(),
-        { tags: ['hello', 'world', '{ not valid json }'] },
-      )
+      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(expect.anything(), {
+        tags: ['hello', 'world', '{ not valid json }'],
+      })
     })
 
     it('should preserve non-JSON string parameters', async () => {
@@ -771,7 +785,9 @@ describe('MCPProxy', () => {
       }
 
       const server = (proxy as any).server
-      const handlers = server.setRequestHandler.mock.calls.flatMap((x: unknown[]) => x).filter((x: unknown) => typeof x === 'function')
+      const handlers = server.setRequestHandler.mock.calls
+        .flatMap((x: unknown[]) => x)
+        .filter((x: unknown) => typeof x === 'function')
       const callToolHandler = handlers[1]
 
       await callToolHandler({
@@ -785,13 +801,10 @@ describe('MCPProxy', () => {
       })
 
       // Verify that non-JSON strings are preserved as-is
-      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(
-        expect.anything(),
-        {
-          query: 'hello world',
-          filter: '{ not valid json }',
-        },
-      )
+      expect(HttpClient.prototype.executeOperation).toHaveBeenCalledWith(expect.anything(), {
+        query: 'hello world',
+        filter: '{ not valid json }',
+      })
     })
   })
 })

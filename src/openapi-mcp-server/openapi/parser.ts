@@ -1,7 +1,7 @@
-import type { OpenAPIV3, OpenAPIV3_1 } from 'openapi-types'
+import type { Tool } from '@anthropic-ai/sdk/resources/messages/messages'
 import type { JSONSchema7 as IJsonSchema } from 'json-schema'
 import type { ChatCompletionTool } from 'openai/resources/chat/completions'
-import type { Tool } from '@anthropic-ai/sdk/resources/messages/messages'
+import type { OpenAPIV3, OpenAPIV3_1 } from 'openapi-types'
 
 type NewToolMethod = {
   name: string
@@ -143,7 +143,11 @@ export class OpenAPIToMCPConverter {
       if (schema.additionalProperties === true || schema.additionalProperties === undefined) {
         result.additionalProperties = true
       } else if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
-        result.additionalProperties = this.convertOpenApiSchemaToJsonSchema(schema.additionalProperties, resolvedRefs, resolveRefs)
+        result.additionalProperties = this.convertOpenApiSchemaToJsonSchema(
+          schema.additionalProperties,
+          resolvedRefs,
+          resolveRefs,
+        )
       } else {
         result.additionalProperties = false
       }
@@ -180,7 +184,10 @@ export class OpenAPIToMCPConverter {
     const tools: Record<string, { methods: NewToolMethod[] }> = {
       [apiName]: { methods: [] },
     }
-    const zip: Record<string, { openApi: OpenAPIV3.OperationObject & { method: string; path: string }; mcp: NewToolMethod }> = {}
+    const zip: Record<
+      string,
+      { openApi: OpenAPIV3.OperationObject & { method: string; path: string }; mcp: NewToolMethod }
+    > = {}
     for (const [path, pathItem] of Object.entries(this.openApiSpec.paths || {})) {
       if (!pathItem) continue
 
@@ -194,8 +201,8 @@ export class OpenAPIToMCPConverter {
           // Apply description prefix to the already-built description (which includes error responses)
           mcpMethod.description = this.getDescription(mcpMethod.description)
           tools[apiName]!.methods.push(mcpMethod)
-          openApiLookup[apiName + '-' + uniqueName] = { ...operation, method, path }
-          zip[apiName + '-' + uniqueName] = { openApi: { ...operation, method, path }, mcp: mcpMethod }
+          openApiLookup[`${apiName}-${uniqueName}`] = { ...operation, method, path }
+          zip[`${apiName}-${uniqueName}`] = { openApi: { ...operation, method, path }, mcp: mcpMethod }
         }
       }
     }
@@ -271,8 +278,8 @@ export class OpenAPIToMCPConverter {
    */
   private convertOperationToJsonSchema(
     operation: OpenAPIV3.OperationObject,
-    method: string,
-    path: string,
+    _method: string,
+    _path: string,
   ): IJsonSchema & { type: 'object' } {
     const schema: IJsonSchema & { type: 'object' } = {
       type: 'object',
@@ -285,7 +292,7 @@ export class OpenAPIToMCPConverter {
     if (operation.parameters) {
       for (const param of operation.parameters) {
         const paramObj = this.resolveParameter(param)
-        if (paramObj && paramObj.schema) {
+        if (paramObj?.schema) {
           const paramSchema = this.convertOpenApiSchemaToJsonSchema(paramObj.schema, new Set())
           // Merge parameter-level description if available
           if (paramObj.description) {
@@ -304,7 +311,10 @@ export class OpenAPIToMCPConverter {
       const bodyObj = this.resolveRequestBody(operation.requestBody)
       if (bodyObj?.content) {
         if (bodyObj.content['application/json']?.schema) {
-          const bodySchema = this.convertOpenApiSchemaToJsonSchema(bodyObj.content['application/json'].schema, new Set())
+          const bodySchema = this.convertOpenApiSchemaToJsonSchema(
+            bodyObj.content['application/json'].schema,
+            new Set(),
+          )
           if (bodySchema.type === 'object' && bodySchema.properties) {
             for (const [name, propSchema] of Object.entries(bodySchema.properties)) {
               schema.properties![name] = propSchema
@@ -324,15 +334,21 @@ export class OpenAPIToMCPConverter {
     return ['get', 'post', 'put', 'delete', 'patch'].includes(method.toLowerCase())
   }
 
-  private isParameterObject(param: OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject): param is OpenAPIV3.ParameterObject {
+  private isParameterObject(
+    param: OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject,
+  ): param is OpenAPIV3.ParameterObject {
     return !('$ref' in param)
   }
 
-  private isRequestBodyObject(body: OpenAPIV3.RequestBodyObject | OpenAPIV3.ReferenceObject): body is OpenAPIV3.RequestBodyObject {
+  private isRequestBodyObject(
+    body: OpenAPIV3.RequestBodyObject | OpenAPIV3.ReferenceObject,
+  ): body is OpenAPIV3.RequestBodyObject {
     return !('$ref' in body)
   }
 
-  private resolveParameter(param: OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject): OpenAPIV3.ParameterObject | null {
+  private resolveParameter(
+    param: OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject,
+  ): OpenAPIV3.ParameterObject | null {
     if (this.isParameterObject(param)) {
       return param
     } else {
@@ -344,7 +360,9 @@ export class OpenAPIToMCPConverter {
     return null
   }
 
-  private resolveRequestBody(body: OpenAPIV3.RequestBodyObject | OpenAPIV3.ReferenceObject): OpenAPIV3.RequestBodyObject | null {
+  private resolveRequestBody(
+    body: OpenAPIV3.RequestBodyObject | OpenAPIV3.ReferenceObject,
+  ): OpenAPIV3.RequestBodyObject | null {
     if (this.isRequestBodyObject(body)) {
       return body
     } else {
@@ -356,7 +374,9 @@ export class OpenAPIToMCPConverter {
     return null
   }
 
-  private resolveResponse(response: OpenAPIV3.ResponseObject | OpenAPIV3.ReferenceObject): OpenAPIV3.ResponseObject | null {
+  private resolveResponse(
+    response: OpenAPIV3.ResponseObject | OpenAPIV3.ReferenceObject,
+  ): OpenAPIV3.ResponseObject | null {
     if ('$ref' in response) {
       const resolved = this.internalResolveRef(response.$ref, new Set())
       if (resolved) {
@@ -368,7 +388,11 @@ export class OpenAPIToMCPConverter {
     return response
   }
 
-  private convertOperationToMCPMethod(operation: OpenAPIV3.OperationObject, method: string, path: string): NewToolMethod | null {
+  private convertOperationToMCPMethod(
+    operation: OpenAPIV3.OperationObject,
+    method: string,
+    path: string,
+  ): NewToolMethod | null {
     if (!operation.operationId) {
       console.warn(`Operation without operationId at ${method} ${path}`)
       return null
@@ -387,7 +411,7 @@ export class OpenAPIToMCPConverter {
     if (operation.parameters) {
       for (const param of operation.parameters) {
         const paramObj = this.resolveParameter(param)
-        if (paramObj && paramObj.schema) {
+        if (paramObj?.schema) {
           const schema = this.convertOpenApiSchemaToJsonSchema(paramObj.schema, new Set(), false)
           // Merge parameter-level description if available
           if (paramObj.description) {
@@ -409,7 +433,11 @@ export class OpenAPIToMCPConverter {
         // We convert the multipart/form-data schema to a JSON schema and we require
         // that the user passes in a string for each file that points to the local file
         if (bodyObj.content['multipart/form-data']?.schema) {
-          const formSchema = this.convertOpenApiSchemaToJsonSchema(bodyObj.content['multipart/form-data'].schema, new Set(), false)
+          const formSchema = this.convertOpenApiSchemaToJsonSchema(
+            bodyObj.content['multipart/form-data'].schema,
+            new Set(),
+            false,
+          )
           if (formSchema.type === 'object' && formSchema.properties) {
             for (const [name, propSchema] of Object.entries(formSchema.properties)) {
               inputSchema.properties![name] = this.withStringFallback(propSchema as IJsonSchema)
@@ -421,7 +449,11 @@ export class OpenAPIToMCPConverter {
         }
         // Handle application/json
         else if (bodyObj.content['application/json']?.schema) {
-          const bodySchema = this.convertOpenApiSchemaToJsonSchema(bodyObj.content['application/json'].schema, new Set(), false)
+          const bodySchema = this.convertOpenApiSchemaToJsonSchema(
+            bodyObj.content['application/json'].schema,
+            new Set(),
+            false,
+          )
           // Merge body schema into the inputSchema's properties
           if (bodySchema.type === 'object' && bodySchema.properties) {
             for (const [name, propSchema] of Object.entries(bodySchema.properties)) {
@@ -432,7 +464,7 @@ export class OpenAPIToMCPConverter {
             }
           } else {
             // If the request body is not an object, just put it under "body"
-            inputSchema.properties!['body'] = this.withStringFallback(bodySchema)
+            inputSchema.properties!.body = this.withStringFallback(bodySchema)
             inputSchema.required!.push('body')
           }
         }
@@ -446,12 +478,12 @@ export class OpenAPIToMCPConverter {
         .filter(([code]) => code.startsWith('4') || code.startsWith('5'))
         .map(([code, response]) => {
           const responseObj = this.resolveResponse(response)
-          let errorDesc = responseObj?.description || ''
+          const errorDesc = responseObj?.description || ''
           return `${code}: ${errorDesc}`
         })
 
       if (errorResponses.length > 0) {
-        description += '\nError Responses:\n' + errorResponses.join('\n')
+        description += `\nError Responses:\n${errorResponses.join('\n')}`
       }
     }
 
@@ -475,11 +507,7 @@ export class OpenAPIToMCPConverter {
    */
   private withStringFallback(schema: IJsonSchema): IJsonSchema {
     const isComplex =
-      schema.type === 'object' ||
-      '$ref' in schema ||
-      'anyOf' in schema ||
-      'oneOf' in schema ||
-      'allOf' in schema
+      schema.type === 'object' || '$ref' in schema || 'anyOf' in schema || 'oneOf' in schema || 'allOf' in schema
 
     if (isComplex) {
       return { anyOf: [schema, { type: 'string' }] }
@@ -489,11 +517,7 @@ export class OpenAPIToMCPConverter {
       return {
         ...schema,
         items: {
-          anyOf: [
-            schema.items as IJsonSchema,
-            { type: 'string' },
-            { type: 'object', additionalProperties: true },
-          ],
+          anyOf: [schema.items as IJsonSchema, { type: 'string' }, { type: 'object', additionalProperties: true }],
         },
       }
     }
@@ -507,11 +531,15 @@ export class OpenAPIToMCPConverter {
     if (!successResponse) return null
 
     const responseObj = this.resolveResponse(successResponse)
-    if (!responseObj || !responseObj.content) return null
+    if (!responseObj?.content) return null
 
     if (responseObj.content['application/json']?.schema) {
-      const returnSchema = this.convertOpenApiSchemaToJsonSchema(responseObj.content['application/json'].schema, new Set(), false)
-      returnSchema['$defs'] = this.convertComponentsToJsonSchema()
+      const returnSchema = this.convertOpenApiSchemaToJsonSchema(
+        responseObj.content['application/json'].schema,
+        new Set(),
+        false,
+      )
+      returnSchema.$defs = this.convertComponentsToJsonSchema()
 
       // Preserve the response description if available and not already set
       if (responseObj.description && !returnSchema.description) {
@@ -548,7 +576,7 @@ export class OpenAPIToMCPConverter {
   private getDescription(description: string): string {
     // Only add "Notion | " prefix for the Notion API
     if (this.openApiSpec.info.title === 'Notion API') {
-      return "Notion | " + description
+      return `Notion | ${description}`
     }
     return description
   }

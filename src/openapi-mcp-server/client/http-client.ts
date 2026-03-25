@@ -1,10 +1,10 @@
-import type { OpenAPIV3, OpenAPIV3_1 } from 'openapi-types'
-import OpenAPIClientAxios from 'openapi-client-axios'
 import type { AxiosInstance } from 'axios'
 import FormData from 'form-data'
 import fs from 'fs'
-import { Headers } from './polyfill-headers'
+import OpenAPIClientAxios from 'openapi-client-axios'
+import type { OpenAPIV3, OpenAPIV3_1 } from 'openapi-types'
 import { isFileUploadParameter } from '../openapi/file-upload'
+import { Headers } from './polyfill-headers'
 
 export type HttpClientConfig = {
   baseUrl: string
@@ -49,7 +49,10 @@ export class HttpClient {
     this.api = this.client.init()
   }
 
-  private async prepareFileUpload(operation: OpenAPIV3.OperationObject, params: Record<string, any>): Promise<FormData | null> {
+  private async prepareFileUpload(
+    operation: OpenAPIV3.OperationObject,
+    params: Record<string, any>,
+  ): Promise<FormData | null> {
     const fileParams = isFileUploadParameter(operation)
     if (fileParams.length === 0) return null
 
@@ -66,22 +69,22 @@ export class HttpClient {
           addFile(param, filePath)
           break
         case 'object':
-          if(Array.isArray(filePath)) {
-            let fileCount = 0
-            for(const file of filePath) {
+          if (Array.isArray(filePath)) {
+            let _fileCount = 0
+            for (const file of filePath) {
               addFile(param, file)
-              fileCount++
+              _fileCount++
             }
             break
           }
-          //deliberate fallthrough
+        //deliberate fallthrough
         default:
           throw new Error(`Unsupported file type: ${typeof filePath}`)
       }
       function addFile(name: string, filePath: string) {
-          try {
-            const fileStream = fs.createReadStream(filePath)
-            formData.append(name, fileStream)
+        try {
+          const fileStream = fs.createReadStream(filePath)
+          formData.append(name, fileStream)
         } catch (error) {
           throw new Error(`Failed to read file at ${filePath}: ${error}`)
         }
@@ -189,7 +192,12 @@ export class HttpClient {
           if (value) headers.append(key, value.toString())
         })
 
-        throw new HttpClientError(error.response.statusText || 'Request failed', error.response.status, error.response.data, headers)
+        throw new HttpClientError(
+          error.response.statusText || 'Request failed',
+          error.response.status,
+          error.response.data,
+          headers,
+        )
       }
       throw error
     }

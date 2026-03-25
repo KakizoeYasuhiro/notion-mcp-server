@@ -1,5 +1,5 @@
 import Mustache from 'mustache'
-import { AuthTemplate, TemplateContext } from './types'
+import type { AuthTemplate, TemplateContext } from './types'
 
 export function renderAuthTemplate(template: AuthTemplate, context: TemplateContext): AuthTemplate {
   // Disable HTML escaping for URLs

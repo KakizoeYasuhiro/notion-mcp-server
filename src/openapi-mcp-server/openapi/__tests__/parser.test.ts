@@ -1,7 +1,7 @@
-import { OpenAPIToMCPConverter } from '../parser'
-import { OpenAPIV3 } from 'openapi-types'
+import type { JSONSchema7 as IJsonSchema } from 'json-schema'
+import type { OpenAPIV3 } from 'openapi-types'
 import { describe, expect, it } from 'vitest'
-import { JSONSchema7 as IJsonSchema } from 'json-schema'
+import { OpenAPIToMCPConverter } from '../parser'
 
 interface ToolMethod {
   name: string
@@ -155,7 +155,7 @@ describe('OpenAPIToMCPConverter', () => {
         openapi: '3.0.0',
         info: {
           title: 'Test API',
-          version: '1.0.0'
+          version: '1.0.0',
         },
         paths: {
           '/pets/{petId}': {
@@ -169,9 +169,9 @@ describe('OpenAPIToMCPConverter', () => {
                   required: true,
                   description: 'The ID of the pet',
                   schema: {
-                    type: 'integer'
-                  }
-                }
+                    type: 'integer',
+                  },
+                },
               ],
               responses: {
                 '200': {
@@ -182,22 +182,22 @@ describe('OpenAPIToMCPConverter', () => {
                         type: 'object',
                         properties: {
                           id: { type: 'integer' },
-                          name: { type: 'string' }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+                          name: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       }
 
       const converter = new OpenAPIToMCPConverter(specWithLongName)
       const { tools } = converter.convertToMCPTools()
 
-      const longNameMethod = tools.API.methods.find(m => m.name.startsWith('a'.repeat(59)))
+      const longNameMethod = tools.API.methods.find((m) => m.name.startsWith('a'.repeat(59)))
       expect(longNameMethod).toBeDefined()
       expect(longNameMethod!.name.length).toBeLessThanOrEqual(64)
     })
@@ -1367,7 +1367,11 @@ describe('OpenAPIToMCPConverter - Additional Complex Tests', () => {
             },
             C: {
               description: 'C schema description',
-              allOf: [{ $ref: '#/components/schemas/Base' }, { $ref: '#/components/schemas/D' }, { $ref: '#/components/schemas/E' }],
+              allOf: [
+                { $ref: '#/components/schemas/Base' },
+                { $ref: '#/components/schemas/D' },
+                { $ref: '#/components/schemas/E' },
+              ],
             },
           },
         },

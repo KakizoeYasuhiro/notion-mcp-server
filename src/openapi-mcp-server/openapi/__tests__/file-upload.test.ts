@@ -1,5 +1,5 @@
-import { OpenAPIV3 } from 'openapi-types'
-import { describe, it, expect } from 'vitest'
+import type { OpenAPIV3 } from 'openapi-types'
+import { describe, expect, it } from 'vitest'
 import { isFileUploadParameter } from '../file-upload'
 
 describe('File Upload Detection', () => {

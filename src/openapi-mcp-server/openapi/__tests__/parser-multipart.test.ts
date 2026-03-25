@@ -1,5 +1,5 @@
-import { OpenAPIV3 } from 'openapi-types'
-import { describe, it, expect } from 'vitest'
+import type { OpenAPIV3 } from 'openapi-types'
+import { describe, expect, it } from 'vitest'
 import { OpenAPIToMCPConverter } from '../parser'
 
 describe('OpenAPI Multipart Form Parser', () => {
@@ -167,11 +167,7 @@ describe('OpenAPI Multipart Form Parser', () => {
       tags: {
         type: 'array',
         items: {
-          anyOf: [
-            { type: 'string' },
-            { type: 'string' },
-            { type: 'object', additionalProperties: true },
-          ],
+          anyOf: [{ type: 'string' }, { type: 'string' }, { type: 'object', additionalProperties: true }],
         },
         description: expect.stringContaining('Optional tags'),
       },

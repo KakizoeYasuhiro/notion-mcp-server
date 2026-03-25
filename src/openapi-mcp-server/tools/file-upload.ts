@@ -1,8 +1,8 @@
-import axios from 'axios'
 import fs from 'node:fs'
 import path from 'node:path'
-import FormData from 'form-data'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import axios from 'axios'
+import FormData from 'form-data'
 import { NOTION_API_VERSION } from './shared'
 
 /** Request timeout in milliseconds */
@@ -90,10 +90,12 @@ export async function handleFileUpload(
 
   if (!filePath || typeof filePath !== 'string') {
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ status: 'error', message: 'file_path is required' }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ status: 'error', message: 'file_path is required' }),
+        },
+      ],
     }
   }
 
@@ -105,20 +107,24 @@ export async function handleFileUpload(
     fs.accessSync(filePath, fs.constants.R_OK)
   } catch {
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ status: 'error', message: `File not found or not readable: ${filePath}` }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ status: 'error', message: `File not found or not readable: ${filePath}` }),
+        },
+      ],
     }
   }
 
   const stat = fs.statSync(filePath)
   if (!stat.isFile()) {
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ status: 'error', message: `Path is not a file: ${filePath}` }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ status: 'error', message: `Path is not a file: ${filePath}` }),
+        },
+      ],
     }
   }
 
@@ -152,24 +158,28 @@ export async function handleFileUpload(
 
     if (createResponse.status >= 400) {
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            status: createResponse.status,
-            step: 'create_upload',
-            data: createResponse.data,
-          }),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              status: createResponse.status,
+              step: 'create_upload',
+              data: createResponse.data,
+            }),
+          },
+        ],
       }
     }
 
     const uploadId = createResponse.data.id
     if (!uploadId) {
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({ status: 'error', message: 'No upload ID returned from create step' }),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ status: 'error', message: 'No upload ID returned from create step' }),
+          },
+        ],
       }
     }
 
@@ -198,44 +208,53 @@ export async function handleFileUpload(
 
     if (sendResponse.status >= 400) {
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            status: sendResponse.status,
-            step: 'send_file',
-            upload_id: uploadId,
-            data: sendResponse.data,
-          }),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              status: sendResponse.status,
+              step: 'send_file',
+              upload_id: uploadId,
+              data: sendResponse.data,
+            }),
+          },
+        ],
       }
     }
 
     console.error(`[file-upload] File sent successfully: ${uploadId}`)
 
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({
-          status: 200,
-          upload_id: uploadId,
-          filename,
-          content_type: contentType,
-          size_bytes: stat.size,
-          message: 'File uploaded. Use the upload_id to attach it to a page or block. Example: use patch-block-children with { type: "file", file: { type: "file_upload", file_upload: { id: "' + uploadId + '" } } }. Upload expires in 1 hour if not attached.',
-        }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            status: 200,
+            upload_id: uploadId,
+            filename,
+            content_type: contentType,
+            size_bytes: stat.size,
+            message:
+              'File uploaded. Use the upload_id to attach it to a page or block. Example: use patch-block-children with { type: "file", file: { type: "file_upload", file_upload: { id: "' +
+              uploadId +
+              '" } } }. Upload expires in 1 hour if not attached.',
+          }),
+        },
+      ],
     }
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error'
     console.error(`[file-upload] Error: ${errMsg}`)
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({
-          status: 'error',
-          message: errMsg.includes('timeout') ? 'Upload timed out (60s)' : 'Upload failed',
-        }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            status: 'error',
+            message: errMsg.includes('timeout') ? 'Upload timed out (60s)' : 'Upload failed',
+          }),
+        },
+      ],
     }
   }
 }

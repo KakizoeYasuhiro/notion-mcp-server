@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { handlePaginatedFetch, paginatedFetchToolDefinition } from '../paginated-fetch'
 import axios from 'axios'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { handlePaginatedFetch, paginatedFetchToolDefinition } from '../paginated-fetch'
 
 vi.mock('axios', () => ({
   default: vi.fn(),
@@ -10,7 +10,7 @@ const mockedAxios = vi.mocked(axios)
 const identity = (x: Record<string, unknown>) => x
 
 const baseUrl = 'https://api.notion.com'
-const authHeaders = { 'Authorization': 'Bearer test', 'Notion-Version': '2026-03-11' }
+const authHeaders = { Authorization: 'Bearer test', 'Notion-Version': '2026-03-11' }
 
 describe('paginatedFetchToolDefinition', () => {
   it('has correct name and required fields', () => {
@@ -36,10 +36,7 @@ describe('handlePaginatedFetch', () => {
   })
 
   it('rejects invalid paths', async () => {
-    const result = await handlePaginatedFetch(
-      { method: 'GET', path: '/v2/bad' },
-      baseUrl, authHeaders, identity,
-    )
+    const result = await handlePaginatedFetch({ method: 'GET', path: '/v2/bad' }, baseUrl, authHeaders, identity)
     const content = JSON.parse(result.content[0].text)
     expect(content.status).toBe('error')
   })
@@ -47,7 +44,9 @@ describe('handlePaginatedFetch', () => {
   it('rejects non-GET/POST methods', async () => {
     const result = await handlePaginatedFetch(
       { method: 'DELETE', path: '/v1/pages/abc' },
-      baseUrl, authHeaders, identity,
+      baseUrl,
+      authHeaders,
+      identity,
     )
     const content = JSON.parse(result.content[0].text)
     expect(content.status).toBe('error')
@@ -67,7 +66,9 @@ describe('handlePaginatedFetch', () => {
 
     const result = await handlePaginatedFetch(
       { method: 'POST', path: '/v1/search', body: { query: 'test' } },
-      baseUrl, authHeaders, identity,
+      baseUrl,
+      authHeaders,
+      identity,
     )
     const content = JSON.parse(result.content[0].text)
     expect(content.status).toBe(200)
@@ -96,10 +97,7 @@ describe('handlePaginatedFetch', () => {
         headers: {},
       } as any)
 
-    const result = await handlePaginatedFetch(
-      { method: 'POST', path: '/v1/search' },
-      baseUrl, authHeaders, identity,
-    )
+    const result = await handlePaginatedFetch({ method: 'POST', path: '/v1/search' }, baseUrl, authHeaders, identity)
     const content = JSON.parse(result.content[0].text)
     expect(content.total_fetched).toBe(2)
     expect(content.pages_fetched).toBe(2)
@@ -126,7 +124,9 @@ describe('handlePaginatedFetch', () => {
 
     const result = await handlePaginatedFetch(
       { method: 'POST', path: '/v1/search', max_items: 2 },
-      baseUrl, authHeaders, identity,
+      baseUrl,
+      authHeaders,
+      identity,
     )
     const content = JSON.parse(result.content[0].text)
     // Should stop after first fetch since we got enough items
@@ -141,10 +141,7 @@ describe('handlePaginatedFetch', () => {
       headers: {},
     } as any)
 
-    const result = await handlePaginatedFetch(
-      { method: 'GET', path: '/v1/pages/abc' },
-      baseUrl, authHeaders, identity,
-    )
+    const result = await handlePaginatedFetch({ method: 'GET', path: '/v1/pages/abc' }, baseUrl, authHeaders, identity)
     const content = JSON.parse(result.content[0].text)
     expect(content.total_fetched).toBe(1)
     expect(content.data.object).toBe('page')
@@ -157,10 +154,7 @@ describe('handlePaginatedFetch', () => {
       headers: {},
     } as any)
 
-    const result = await handlePaginatedFetch(
-      { method: 'POST', path: '/v1/search' },
-      baseUrl, authHeaders, identity,
-    )
+    const result = await handlePaginatedFetch({ method: 'POST', path: '/v1/search' }, baseUrl, authHeaders, identity)
     const content = JSON.parse(result.content[0].text)
     expect(content.status).toBe(400)
   })

@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { HttpClient } from '../http-client'
-import { OpenAPIV3 } from 'openapi-types'
-import fs from 'fs'
 import FormData from 'form-data'
+import fs from 'fs'
+import type { OpenAPIV3 } from 'openapi-types'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { HttpClient } from '../http-client'
 
 vi.mock('fs')
 vi.mock('form-data')
@@ -76,7 +76,7 @@ describe('HttpClient File Upload', () => {
   })
 
   it('should handle file uploads with FormData', async () => {
-    const mockFormData = new FormData()
+    const _mockFormData = new FormData()
     const mockFileStream = { pipe: vi.fn() }
     const mockFormDataHeaders = { 'content-type': 'multipart/form-data; boundary=---123' }
 
@@ -123,11 +123,13 @@ describe('HttpClient File Upload', () => {
       description: 'Test file',
     }
 
-    await expect(client.executeOperation(operation, params)).rejects.toThrow('Failed to read file at /nonexistent/file.txt')
+    await expect(client.executeOperation(operation, params)).rejects.toThrow(
+      'Failed to read file at /nonexistent/file.txt',
+    )
   })
 
   it('should handle multiple file uploads', async () => {
-    const mockFormData = new FormData()
+    const _mockFormData = new FormData()
     const mockFileStream1 = { pipe: vi.fn() }
     const mockFileStream2 = { pipe: vi.fn() }
     const mockFormDataHeaders = { 'content-type': 'multipart/form-data; boundary=---123' }

@@ -1,6 +1,6 @@
-import axios from 'axios'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { MAX_RESPONSE_SIZE, REQUEST_TIMEOUT_MS, structuredTruncate, isValidPath, sleep, NOTION_API_VERSION } from './shared'
+import axios from 'axios'
+import { isValidPath, NOTION_API_VERSION, REQUEST_TIMEOUT_MS, sleep, structuredTruncate } from './shared'
 
 /** Maximum total results to fetch across all pages */
 const MAX_TOTAL_RESULTS = 500
@@ -36,7 +36,8 @@ export const paginatedFetchToolDefinition: Tool = {
       body: {
         type: 'object',
         additionalProperties: true,
-        description: 'Request body for POST endpoints (e.g. filters, sorts). start_cursor is managed automatically — do not include it.',
+        description:
+          'Request body for POST endpoints (e.g. filters, sorts). start_cursor is managed automatically — do not include it.',
       },
       query: {
         type: 'object',
@@ -45,7 +46,8 @@ export const paginatedFetchToolDefinition: Tool = {
       },
       max_items: {
         type: 'number',
-        description: 'Maximum number of items to fetch (default: 500, max: 500). Use a smaller number if you only need a few results.',
+        description:
+          'Maximum number of items to fetch (default: 500, max: 500). Use a smaller number if you only need a few results.',
       },
     },
     required: ['method', 'path'],
@@ -74,19 +76,26 @@ export async function handlePaginatedFetch(
 
   if (!isValidPath(path)) {
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ status: 'error', message: 'Invalid path. Must start with /v1/ and contain only safe characters.' }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            status: 'error',
+            message: 'Invalid path. Must start with /v1/ and contain only safe characters.',
+          }),
+        },
+      ],
     }
   }
 
   if (!['GET', 'POST'].includes(method)) {
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ status: 'error', message: 'Only GET and POST are supported for paginated fetch.' }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ status: 'error', message: 'Only GET and POST are supported for paginated fetch.' }),
+        },
+      ],
     }
   }
 
@@ -105,17 +114,15 @@ export async function handlePaginatedFetch(
   console.error(`[paginated-fetch] ${method} ${path} (max_items=${maxItems})`)
 
   const allResults: unknown[] = []
-  let nextCursor: string | undefined = undefined
+  let nextCursor: string | undefined
   let pageCount = 0
 
   try {
     while (allResults.length < maxItems) {
-      const requestBody: Record<string, unknown> | undefined = method === 'POST'
-        ? { ...body, ...(nextCursor ? { start_cursor: nextCursor } : {}) }
-        : undefined
-      const requestQuery: Record<string, unknown> | undefined = method === 'GET'
-        ? { ...query, ...(nextCursor ? { start_cursor: nextCursor } : {}) }
-        : query
+      const requestBody: Record<string, unknown> | undefined =
+        method === 'POST' ? { ...body, ...(nextCursor ? { start_cursor: nextCursor } : {}) } : undefined
+      const requestQuery: Record<string, unknown> | undefined =
+        method === 'GET' ? { ...query, ...(nextCursor ? { start_cursor: nextCursor } : {}) } : query
 
       const response: { status: number; data: any; headers: Record<string, string> } = await axios({
         method: method.toLowerCase() as 'get' | 'post',
@@ -136,10 +143,12 @@ export async function handlePaginatedFetch(
 
       if (response.status >= 400) {
         return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({ status: response.status, data: response.data }),
-          }],
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ status: response.status, data: response.data }),
+            },
+          ],
         }
       }
 
@@ -150,10 +159,12 @@ export async function handlePaginatedFetch(
         allResults.push(...results)
       } else {
         return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({ status: 200, data, total_fetched: 1 }),
-          }],
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ status: 200, data, total_fetched: 1 }),
+            },
+          ],
         }
       }
 
@@ -187,27 +198,32 @@ export async function handlePaginatedFetch(
       result.truncated = true
       if (omitted_count !== undefined) result.omitted_count = omitted_count
       if (total !== undefined) result.total_in_response = total
-      result.hint = 'Response was truncated to fit size limits. Use max_items with a smaller value or add filters to reduce results.'
+      result.hint =
+        'Response was truncated to fit size limits. Use max_items with a smaller value or add filters to reduce results.'
     }
 
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify(truncatedData),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify(truncatedData),
+        },
+      ],
     }
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error'
     console.error(`[paginated-fetch] Error: ${errMsg}`)
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({
-          status: 'error',
-          message: errMsg.includes('timeout') ? 'Request timed out (30s)' : 'Request failed',
-          partial_results: allResults.length,
-        }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            status: 'error',
+            message: errMsg.includes('timeout') ? 'Request timed out (30s)' : 'Request failed',
+            partial_results: allResults.length,
+          }),
+        },
+      ],
     }
   }
 }

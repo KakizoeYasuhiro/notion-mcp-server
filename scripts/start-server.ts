@@ -1,42 +1,42 @@
+import { randomBytes, randomUUID } from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'url'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
-import { randomUUID, randomBytes } from 'node:crypto'
-import fs from 'node:fs'
-import os from 'node:os'
 import express from 'express'
+import { fileURLToPath } from 'url'
 
 import { initProxy, ValidationError } from '../src/init-server'
 
-export async function startServer(args: string[] = process.argv) {
+export async function startServer(_args: string[] = process.argv) {
   const filename = fileURLToPath(import.meta.url)
   const directory = path.dirname(filename)
   const specPath = path.resolve(directory, '../scripts/notion-openapi.json')
-  
+
   const baseUrl = process.env.BASE_URL ?? undefined
 
   // Parse command line arguments manually (similar to slack-mcp approach)
   function parseArgs() {
-    const args = process.argv.slice(2);
-    let transport = 'stdio'; // default
-    let port = 3000;
-    let authToken: string | undefined;
-    let disableAuth = false;
+    const args = process.argv.slice(2)
+    let transport = 'stdio' // default
+    let port = 3000
+    let authToken: string | undefined
+    let disableAuth = false
 
     for (let i = 0; i < args.length; i++) {
       if (args[i] === '--transport' && i + 1 < args.length) {
-        transport = args[i + 1];
-        i++; // skip next argument
+        transport = args[i + 1]
+        i++ // skip next argument
       } else if (args[i] === '--port' && i + 1 < args.length) {
-        port = parseInt(args[i + 1], 10);
-        i++; // skip next argument
+        port = parseInt(args[i + 1], 10)
+        i++ // skip next argument
       } else if (args[i] === '--auth-token' && i + 1 < args.length) {
-        authToken = args[i + 1];
-        i++; // skip next argument
+        authToken = args[i + 1]
+        i++ // skip next argument
       } else if (args[i] === '--disable-auth') {
-        disableAuth = true;
+        disableAuth = true
       } else if (args[i] === '--help' || args[i] === '-h') {
         console.log(`
 Usage: notion-mcp-server [options]
@@ -61,13 +61,13 @@ Examples:
   notion-mcp-server --transport http --auth-token mytoken # Use Streamable HTTP transport with custom auth token
   notion-mcp-server --transport http --disable-auth    # Use Streamable HTTP transport without authentication
   AUTH_TOKEN=mytoken notion-mcp-server --transport http # Use Streamable HTTP transport with auth token from env var
-`);
-        process.exit(0);
+`)
+        process.exit(0)
       }
       // Ignore unrecognized arguments (like command name passed by Docker)
     }
 
-    return { transport: transport.toLowerCase(), port, authToken, disableAuth };
+    return { transport: transport.toLowerCase(), port, authToken, disableAuth }
   }
 
   const options = parseArgs()
@@ -98,8 +98,8 @@ Examples:
 
     // Authorization middleware
     const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
-      const authHeader = req.headers['authorization']
-      const token = authHeader && authHeader.split(' ')[1] // Bearer TOKEN
+      const authHeader = req.headers.authorization
+      const token = authHeader?.split(' ')[1] // Bearer TOKEN
 
       if (!token) {
         res.status(401).json({
@@ -129,12 +129,12 @@ Examples:
     }
 
     // Health endpoint (no authentication required)
-    app.get('/health', (req, res) => {
+    app.get('/health', (_req, res) => {
       res.status(200).json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
         transport: 'http',
-        port: options.port
+        port: options.port,
       })
     })
 
@@ -149,20 +149,23 @@ Examples:
     const SESSION_TTL_MS = 30 * 60 * 1000 // 30 minutes
 
     // Periodic session cleanup
-    setInterval(() => {
-      const now = Date.now()
-      for (const [sessionId, lastAccess] of Object.entries(sessionLastAccess)) {
-        if (now - lastAccess > SESSION_TTL_MS) {
-          console.error(`[http] Cleaning up stale session: ${sessionId}`)
-          const transport = transports[sessionId]
-          if (transport) {
-            transport.close?.()
+    setInterval(
+      () => {
+        const now = Date.now()
+        for (const [sessionId, lastAccess] of Object.entries(sessionLastAccess)) {
+          if (now - lastAccess > SESSION_TTL_MS) {
+            console.error(`[http] Cleaning up stale session: ${sessionId}`)
+            const transport = transports[sessionId]
+            if (transport) {
+              transport.close?.()
+            }
+            delete transports[sessionId]
+            delete sessionLastAccess[sessionId]
           }
-          delete transports[sessionId]
-          delete sessionLastAccess[sessionId]
         }
-      }
-    }, 5 * 60 * 1000) // Check every 5 minutes
+      },
+      5 * 60 * 1000,
+    ) // Check every 5 minutes
 
     // Handle POST requests for client-to-server communication
     app.post('/mcp', async (req, res) => {
@@ -183,7 +186,7 @@ Examples:
               // Store the transport by session ID
               transports[sessionId] = transport
               sessionLastAccess[sessionId] = Date.now()
-            }
+            },
           })
 
           // Clean up transport when closed
@@ -233,7 +236,7 @@ Examples:
         res.status(400).send('Invalid or missing session ID')
         return
       }
-      
+
       const transport = transports[sessionId]
       await transport.handleRequest(req, res)
     })
@@ -245,7 +248,7 @@ Examples:
         res.status(400).send('Invalid or missing session ID')
         return
       }
-      
+
       const transport = transports[sessionId]
       await transport.handleRequest(req, res)
     })
@@ -269,12 +272,12 @@ Examples:
         try {
           const res = await fetch('https://api.notion.com/v1/users/me', {
             headers: {
-              'Authorization': `Bearer ${notionToken}`,
+              Authorization: `Bearer ${notionToken}`,
               'Notion-Version': '2022-06-28',
             },
           })
           if (res.ok) {
-            const data = await res.json() as { id?: string; type?: string }
+            const data = (await res.json()) as { id?: string; type?: string }
             if (data.id && data.type === 'bot') {
               console.log(`Notion integration settings: https://www.notion.so/profile/integrations/internal/${data.id}`)
             }
@@ -294,10 +297,10 @@ Examples:
   }
 }
 
-startServer(process.argv).catch(error => {
+startServer(process.argv).catch((error) => {
   if (error instanceof ValidationError) {
     console.error('Invalid OpenAPI 3.1 specification:')
-    error.errors.forEach(err => console.error(err))
+    error.errors.forEach((err) => console.error(err))
   } else {
     console.error('Error:', error)
   }

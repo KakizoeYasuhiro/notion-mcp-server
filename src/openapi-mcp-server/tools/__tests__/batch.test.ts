@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { handleBatchOperations, batchToolDefinition } from '../batch'
 import axios from 'axios'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { batchToolDefinition, handleBatchOperations } from '../batch'
 
 vi.mock('axios', () => ({
   default: vi.fn(),
@@ -10,7 +10,7 @@ const mockedAxios = vi.mocked(axios)
 const identity = (x: Record<string, unknown>) => x
 
 const baseUrl = 'https://api.notion.com'
-const authHeaders = { 'Authorization': 'Bearer test', 'Notion-Version': '2026-03-11' }
+const authHeaders = { Authorization: 'Bearer test', 'Notion-Version': '2026-03-11' }
 
 describe('batchToolDefinition', () => {
   it('has correct name', () => {
@@ -38,20 +38,14 @@ describe('handleBatchOperations', () => {
   })
 
   it('rejects non-array operations', async () => {
-    const result = await handleBatchOperations(
-      { operations: 'not-array' },
-      baseUrl, authHeaders, identity,
-    )
+    const result = await handleBatchOperations({ operations: 'not-array' }, baseUrl, authHeaders, identity)
     const content = JSON.parse(result.content[0].text)
     expect(content.status).toBe('error')
     expect(content.message).toContain('array')
   })
 
   it('rejects empty operations', async () => {
-    const result = await handleBatchOperations(
-      { operations: [] },
-      baseUrl, authHeaders, identity,
-    )
+    const result = await handleBatchOperations({ operations: [] }, baseUrl, authHeaders, identity)
     const content = JSON.parse(result.content[0].text)
     expect(content.status).toBe('error')
     expect(content.message).toContain('empty')
@@ -59,12 +53,10 @@ describe('handleBatchOperations', () => {
 
   it('rejects more than 20 operations', async () => {
     const ops = Array.from({ length: 21 }, (_, i) => ({
-      method: 'GET', path: `/v1/pages/p${i}`,
+      method: 'GET',
+      path: `/v1/pages/p${i}`,
     }))
-    const result = await handleBatchOperations(
-      { operations: ops },
-      baseUrl, authHeaders, identity,
-    )
+    const result = await handleBatchOperations({ operations: ops }, baseUrl, authHeaders, identity)
     const content = JSON.parse(result.content[0].text)
     expect(content.status).toBe('error')
     expect(content.message).toContain('20')
@@ -84,7 +76,9 @@ describe('handleBatchOperations', () => {
           { method: 'PATCH', path: '/v1/pages/def', body: { archived: true } },
         ],
       },
-      baseUrl, authHeaders, identity,
+      baseUrl,
+      authHeaders,
+      identity,
     )
     const content = JSON.parse(result.content[0].text)
     expect(content.summary.total).toBe(2)
@@ -113,7 +107,9 @@ describe('handleBatchOperations', () => {
           { method: 'PATCH', path: '/v1/pages/good' },
         ],
       },
-      baseUrl, authHeaders, identity,
+      baseUrl,
+      authHeaders,
+      identity,
     )
     const content = JSON.parse(result.content[0].text)
     expect(content.summary.succeeded).toBe(1)
@@ -136,7 +132,9 @@ describe('handleBatchOperations', () => {
         ],
         stop_on_error: true,
       },
-      baseUrl, authHeaders, identity,
+      baseUrl,
+      authHeaders,
+      identity,
     )
     const content = JSON.parse(result.content[0].text)
     expect(content.summary.executed).toBe(1)
@@ -158,7 +156,9 @@ describe('handleBatchOperations', () => {
           { method: 'GET', path: '/v1/pages/good' },
         ],
       },
-      baseUrl, authHeaders, identity,
+      baseUrl,
+      authHeaders,
+      identity,
     )
     const content = JSON.parse(result.content[0].text)
     expect(content.summary.failed).toBe(1)

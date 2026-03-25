@@ -1,8 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { handleFileUpload, fileUploadToolDefinition } from '../file-upload'
-import axios from 'axios'
 import fs from 'node:fs'
-import { Readable } from 'node:stream'
+import axios from 'axios'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { fileUploadToolDefinition, handleFileUpload } from '../file-upload'
 
 vi.mock('axios', () => ({
   default: vi.fn(),
@@ -12,7 +11,7 @@ const mockedAxios = vi.mocked(axios)
 const identity = (x: Record<string, unknown>) => x
 
 const baseUrl = 'https://api.notion.com'
-const authHeaders = { 'Authorization': 'Bearer test', 'Notion-Version': '2026-03-11' }
+const authHeaders = { Authorization: 'Bearer test', 'Notion-Version': '2026-03-11' }
 
 describe('fileUploadToolDefinition', () => {
   it('has correct name', () => {
@@ -36,10 +35,7 @@ describe('handleFileUpload', () => {
   })
 
   it('rejects missing file_path', async () => {
-    const result = await handleFileUpload(
-      {} as any,
-      baseUrl, authHeaders, identity,
-    )
+    const result = await handleFileUpload({} as any, baseUrl, authHeaders, identity)
     const content = JSON.parse(result.content[0].text)
     expect(content.status).toBe('error')
     expect(content.message).toContain('file_path')
@@ -48,7 +44,9 @@ describe('handleFileUpload', () => {
   it('rejects non-existent files', async () => {
     const result = await handleFileUpload(
       { file_path: '/tmp/nonexistent-file-abc123.xyz' },
-      baseUrl, authHeaders, identity,
+      baseUrl,
+      authHeaders,
+      identity,
     )
     const content = JSON.parse(result.content[0].text)
     expect(content.status).toBe('error')
@@ -75,10 +73,7 @@ describe('handleFileUpload', () => {
           headers: {},
         } as any)
 
-      const result = await handleFileUpload(
-        { file_path: tmpFile },
-        baseUrl, authHeaders, identity,
-      )
+      const result = await handleFileUpload({ file_path: tmpFile }, baseUrl, authHeaders, identity)
       const content = JSON.parse(result.content[0].text)
       expect(content.status).toBe(200)
       expect(content.upload_id).toBe('upload-123')
@@ -117,10 +112,7 @@ describe('handleFileUpload', () => {
         headers: {},
       } as any)
 
-      const result = await handleFileUpload(
-        { file_path: tmpFile },
-        baseUrl, authHeaders, identity,
-      )
+      const result = await handleFileUpload({ file_path: tmpFile }, baseUrl, authHeaders, identity)
       const content = JSON.parse(result.content[0].text)
       expect(content.status).toBe(400)
       expect(content.step).toBe('create_upload')
@@ -146,10 +138,7 @@ describe('handleFileUpload', () => {
           headers: {},
         } as any)
 
-      const result = await handleFileUpload(
-        { file_path: tmpFile },
-        baseUrl, authHeaders, identity,
-      )
+      const result = await handleFileUpload({ file_path: tmpFile }, baseUrl, authHeaders, identity)
       const content = JSON.parse(result.content[0].text)
       expect(content.content_type).toBe('image/png')
     } finally {
@@ -176,7 +165,9 @@ describe('handleFileUpload', () => {
 
       const result = await handleFileUpload(
         { file_path: tmpFile, filename: 'report.pdf', content_type: 'application/pdf' },
-        baseUrl, authHeaders, identity,
+        baseUrl,
+        authHeaders,
+        identity,
       )
       const content = JSON.parse(result.content[0].text)
       expect(content.filename).toBe('report.pdf')

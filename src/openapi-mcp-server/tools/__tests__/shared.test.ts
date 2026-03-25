@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { structuredTruncate, findDedicatedToolHint, isValidPath, buildExecutionMetadata } from '../shared'
+import { describe, expect, it } from 'vitest'
+import { buildExecutionMetadata, findDedicatedToolHint, isValidPath, structuredTruncate } from '../shared'
 
 describe('structuredTruncate', () => {
   it('returns data unchanged when under size limit', () => {

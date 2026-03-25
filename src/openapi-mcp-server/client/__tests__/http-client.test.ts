@@ -1,6 +1,7 @@
-import { HttpClient, HttpClientError } from '../http-client'
-import { OpenAPIV3 } from 'openapi-types'
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import type { OpenAPIV3 } from 'openapi-types'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { HttpClient } from '../http-client'
+
 const { sharedMockApi, mockInit } = vi.hoisted(() => {
   const sharedMockApi = {
     getPet: vi.fn(),
@@ -56,7 +57,10 @@ describe('HttpClient', () => {
     },
   }
 
-  const getPetOperation = sampleSpec.paths['/pets/{petId}']?.get as OpenAPIV3.OperationObject & { method: string; path: string }
+  const getPetOperation = sampleSpec.paths['/pets/{petId}']?.get as OpenAPIV3.OperationObject & {
+    method: string
+    path: string
+  }
   if (!getPetOperation) {
     throw new Error('Test setup error: getPet operation not found in sample spec')
   }
@@ -299,7 +303,11 @@ describe('HttpClient', () => {
 
     await client.executeOperation(postOperation, { foo: 'bar' })
 
-    expect(mockApi.testOperation).toHaveBeenCalledWith({}, { foo: 'bar' }, { headers: { 'Content-Type': 'application/json' } })
+    expect(mockApi.testOperation).toHaveBeenCalledWith(
+      {},
+      { foo: 'bar' },
+      { headers: { 'Content-Type': 'application/json' } },
+    )
   })
 
   it('should handle query, path, and body parameters correctly', async () => {
@@ -511,11 +519,14 @@ describe('HttpClient', () => {
       throw new Error('Operation not found in mock spec')
     }
 
-    const response = await client.executeOperation(operation as OpenAPIV3.OperationObject & { method: string; path: string }, {
-      queryParam: 'query1',
-      pathParam: 'path1',
-      bodyParam: 'body1',
-    })
+    const response = await client.executeOperation(
+      operation as OpenAPIV3.OperationObject & { method: string; path: string },
+      {
+        queryParam: 'query1',
+        pathParam: 'path1',
+        bodyParam: 'body1',
+      },
+    )
 
     expect(mockAxiosInstance.testOperation).toHaveBeenCalledWith(
       {
