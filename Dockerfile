@@ -1,39 +1,19 @@
 # syntax=docker/dockerfile:1
+FROM node:24.22.2-bookworm-slim AS base
 
-# Use Node.js LTS as the base image
-FROM node:20-slim AS builder
-
-# Set working directory
+FROM base AS builder
 WORKDIR /app
-
-# Copy package.json and package-lock.json
 COPY package*.json ./
-
-# Install dependencies
-RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts --omit-dev
-
-# Copy source code
+RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts
 COPY . .
+RUN npm run build
 
-# Build the package
-RUN --mount=type=cache,target=/root/.npm npm run build
+FROM base
+WORKDIR /app
+COPY --from=builder /app/bin/cli.mjs ./bin/cli.mjs
+COPY --from=builder /app/scripts/notion-openapi.json ./scripts/notion-openapi.json
+RUN ln -s /app/bin/cli.mjs /usr/local/bin/notion-mcp-server
 
-# Install package globally
-RUN --mount=type=cache,target=/root/.npm npm link
-
-# Minimal image for runtime
-FROM node:20-slim
-
-# Copy built package from builder stage
-COPY scripts/notion-openapi.json /usr/local/scripts/
-COPY --from=builder /usr/local/lib/node_modules/@notionhq/notion-mcp-server /usr/local/lib/node_modules/@notionhq/notion-mcp-server
-COPY --from=builder /usr/local/bin/notion-mcp-server /usr/local/bin/notion-mcp-server
-
-# Set default environment variables
 ENV OPENAPI_MCP_HEADERS="{}"
-
-# Run as non-root user
 USER node
-
-# Set entrypoint
 ENTRYPOINT ["notion-mcp-server"]
